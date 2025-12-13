@@ -40,7 +40,7 @@ from models.room import (
 # Import commands from command modules
 from commands.setup import ColouredGroup, help_command, setup_command, configure_command
 from commands.cache import reload_command, cache_info_command
-from commands.room import save_room_command, diff_room_command
+from commands.room import save_room_command, diff_room_command, restore_room_command
 from commands.inspection import (
     scene_details_command,
     status_command,
@@ -105,6 +105,7 @@ cli.add_command(cache_info_command)
 # Register room commands
 cli.add_command(save_room_command)
 cli.add_command(diff_room_command)
+cli.add_command(restore_room_command)
 
 # Register inspection commands
 cli.add_command(scene_details_command, name='scene-details')

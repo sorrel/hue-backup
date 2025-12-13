@@ -146,12 +146,12 @@ def diff_room_configuration(controller: 'HueController', saved_file_path: str, v
     - Room metadata changes
     - Lights: added/removed (verbose: + state changes like on/off, brightness, colour temp)
     - Scenes: added/removed/changed (auto_dynamic, action count)
-    - Behaviours: added/removed/changed (enabled state)
+    - Behaviours: added/removed/changed (verbose: + detailed button configuration changes)
 
     Args:
         controller: HueController instance
         saved_file_path: Path to saved room JSON file
-        verbose: If True, include ephemeral state changes (light levels, on/off)
+        verbose: If True, include ephemeral state changes and detailed configuration diffs
 
     Returns:
         Dict with diff results, or None if error
@@ -217,6 +217,15 @@ def diff_room_configuration(controller: 'HueController', saved_file_path: str, v
             if room_id in where_rids:
                 current_behaviours.append(b)
 
+        # Create scene ID -> name lookup for verbose output
+        scene_lookup = {}
+        all_scenes = cache.get('scenes', [])
+        for scene in all_scenes:
+            scene_id = scene.get('id', '')
+            scene_name = scene.get('metadata', {}).get('name', 'Unknown')
+            if scene_id:
+                scene_lookup[scene_id] = scene_name
+
         # Compare sections
         diff = {
             'room_name': room_name,
@@ -226,7 +235,7 @@ def diff_room_configuration(controller: 'HueController', saved_file_path: str, v
             'room': _diff_room_metadata(saved['room'], current_room),
             'lights': _diff_lights(saved['lights'], current_lights, verbose),
             'scenes': _diff_scenes(saved['scenes'], current_scenes),
-            'behaviours': _diff_behaviours(saved['behaviours'], current_behaviours),
+            'behaviours': _diff_behaviours(saved['behaviours'], current_behaviours, verbose, scene_lookup),
         }
 
         return diff
@@ -380,8 +389,173 @@ def _diff_scenes(saved_scenes: List[dict], current_scenes: List[dict]) -> Dict:
     }
 
 
-def _diff_behaviours(saved_behaviours: List[dict], current_behaviours: List[dict]) -> Dict:
-    """Compare behaviour instances - added, removed, and state changes."""
+def _diff_button_configuration(saved_config: dict, current_config: dict, verbose: bool = False, scene_lookup: dict = None) -> List[str]:
+    """Compare button configurations and return list of detailed changes.
+
+    Handles both old format (button1/button2/button3/button4) and new format (buttons dict).
+
+    Args:
+        saved_config: Saved configuration
+        current_config: Current configuration
+        verbose: If True, include scene names/IDs in changes
+        scene_lookup: Dict mapping scene IDs to names (for verbose output)
+    """
+    changes = []
+    if scene_lookup is None:
+        scene_lookup = {}
+
+    # Check old format buttons (button1, button2, button3, button4)
+    for button_key in ['button1', 'button2', 'button3', 'button4', 'rotary']:
+        saved_button = saved_config.get(button_key, {})
+        current_button = current_config.get(button_key, {})
+
+        if saved_button != current_button:
+            button_label = {
+                'button1': 'Button 1 (ON)',
+                'button2': 'Button 2 (DIM UP)',
+                'button3': 'Button 3 (DIM DOWN)',
+                'button4': 'Button 4 (OFF)',
+                'rotary': 'Dial (ROTATE)'
+            }.get(button_key, button_key)
+
+            # Detect what changed
+            button_changes = _describe_button_change(saved_button, current_button, verbose, scene_lookup)
+            if button_changes:
+                changes.append(f"{button_label}: {button_changes}")
+
+    # Check new format buttons (buttons dict with button rids as keys)
+    saved_buttons = saved_config.get('buttons', {})
+    current_buttons = current_config.get('buttons', {})
+
+    all_button_rids = set(saved_buttons.keys()) | set(current_buttons.keys())
+    for button_rid in all_button_rids:
+        saved_button = saved_buttons.get(button_rid, {})
+        current_button = current_buttons.get(button_rid, {})
+
+        if saved_button != current_button:
+            # Try to get a descriptive label (Button 1, 2, 3, 4 based on position)
+            button_changes = _describe_button_change(saved_button, current_button, verbose, scene_lookup)
+            if button_changes:
+                changes.append(f"Button: {button_changes}")
+
+    return changes
+
+
+def _describe_button_change(saved_button: dict, current_button: dict, verbose: bool = False, scene_lookup: dict = None) -> str:
+    """Describe what changed in a button configuration.
+
+    Args:
+        saved_button: Saved button config
+        current_button: Current button config
+        verbose: If True, include scene names in output
+        scene_lookup: Dict mapping scene IDs to names
+    """
+    if scene_lookup is None:
+        scene_lookup = {}
+    if not saved_button and current_button:
+        return "added configuration"
+    if saved_button and not current_button:
+        return "removed configuration"
+
+    # Check for action type changes
+    # Old format: actions nested in 'when'
+    # New format: actions directly on button (on_short_release, on_long_press, etc.)
+    saved_when = saved_button.get('when', saved_button)  # Fall back to button itself for new format
+    current_when = current_button.get('when', current_button)
+
+    # Extract scene IDs from various button action formats
+    def extract_scene_ids_from_action(action_config):
+        """Extract scene IDs from button action configuration."""
+        scene_ids = []
+
+        # Format 1: scene_cycle with scene_ids
+        if 'scene_cycle' in action_config:
+            scene_refs = action_config['scene_cycle'].get('scene_ids', [])
+            for ref in scene_refs:
+                if isinstance(ref, dict):
+                    scene_ids.append(ref.get('rid', ''))
+                else:
+                    scene_ids.append(ref)
+
+        # Format 2: scene_cycle_extended with slots
+        if 'scene_cycle_extended' in action_config:
+            slots = action_config['scene_cycle_extended'].get('slots', [])
+            for slot in slots:
+                # Each slot is a list with action items
+                for item in slot:
+                    recall = item.get('action', {}).get('recall', {})
+                    if recall.get('rtype') == 'scene':
+                        scene_ids.append(recall.get('rid', ''))
+
+        return [sid for sid in scene_ids if sid]  # Filter empty strings
+
+    # Check on_short_release for scene cycles
+    saved_short_release = saved_when.get('on_short_release', {})
+    current_short_release = current_when.get('on_short_release', {})
+
+    saved_scenes = extract_scene_ids_from_action(saved_short_release)
+    current_scenes = extract_scene_ids_from_action(current_short_release)
+
+    if saved_scenes or current_scenes:
+        if saved_scenes != current_scenes:
+            added = set(current_scenes) - set(saved_scenes)
+            removed = set(saved_scenes) - set(current_scenes)
+
+            if verbose:
+                # Show actual scene names with bright yellow highlighting
+                parts = []
+                if removed:
+                    removed_names = [click.style(scene_lookup.get(sid, sid), fg='bright_yellow') for sid in sorted(removed)]
+                    removed_str = ', '.join(removed_names)
+                    parts.append(f"removed: {removed_str}")
+                if added:
+                    added_names = [click.style(scene_lookup.get(sid, sid), fg='bright_yellow') for sid in sorted(added)]
+                    added_str = ', '.join(added_names)
+                    parts.append(f"added: {added_str}")
+                return f"scene cycle modified ({'; '.join(parts)})"
+            else:
+                # Just show counts
+                if added and removed:
+                    return f"scene cycle modified ({len(removed)} removed, {len(added)} added)"
+                elif added:
+                    return f"scene cycle: added {len(added)} scene(s)"
+                elif removed:
+                    return f"scene cycle: removed {len(removed)} scene(s)"
+                else:
+                    # Scenes reordered or changed but same count
+                    return f"scene cycle: scenes changed (count: {len(current_scenes)})"
+
+    # Time-based schedule changes
+    if 'time_based_light_scene' in saved_when or 'time_based_light_scene' in current_when:
+        saved_slots = saved_when.get('time_based_light_scene', {}).get('schedule', {}).get('time_slots', [])
+        current_slots = current_when.get('time_based_light_scene', {}).get('schedule', {}).get('time_slots', [])
+
+        if saved_slots != current_slots:
+            return f"time-based schedule modified ({len(saved_slots)} → {len(current_slots)} slots)"
+
+    # Dimming changes
+    if 'dimming' in saved_when or 'dimming' in current_when:
+        if saved_when.get('dimming') != current_when.get('dimming'):
+            return "dimming configuration changed"
+
+    # Generic change if we can't determine specifics
+    if saved_button != current_button:
+        return "configuration changed"
+
+    return ""
+
+
+def _diff_behaviours(saved_behaviours: List[dict], current_behaviours: List[dict], verbose: bool = False, scene_lookup: dict = None) -> Dict:
+    """Compare behaviour instances - added, removed, and state changes.
+
+    Args:
+        saved_behaviours: Saved behaviour instances
+        current_behaviours: Current behaviour instances
+        verbose: If True, show detailed configuration differences
+        scene_lookup: Dict mapping scene IDs to names (for verbose output)
+    """
+    if scene_lookup is None:
+        scene_lookup = {}
     saved_by_id = {b['id']: b for b in saved_behaviours}
     current_by_id = {b['id']: b for b in current_behaviours}
 
@@ -414,6 +588,18 @@ def _diff_behaviours(saved_behaviours: List[dict], current_behaviours: List[dict
             if saved_status != current_status:
                 behav_changes.append(f"status: {saved_status} → {current_status}")
 
+            # Compare configuration (button mappings, scene lists, time-based schedules, etc.)
+            saved_config = saved_behav.get('configuration', {})
+            current_config = current_behav.get('configuration', {})
+
+            if saved_config != current_config:
+                # Always show button-level details (not just verbose)
+                config_details = _diff_button_configuration(saved_config, current_config, verbose, scene_lookup)
+                if config_details:
+                    behav_changes.extend(config_details)
+                else:
+                    behav_changes.append("configuration: button programmes modified")
+
             if behav_changes:
                 name = saved_behav.get('metadata', {}).get('name', 'Unknown')
                 changed.append({'name': name, 'changes': behav_changes})
@@ -424,3 +610,97 @@ def _diff_behaviours(saved_behaviours: List[dict], current_behaviours: List[dict
         'changed': changed,
         'summary': f"{len(added)} added, {len(removed)} removed, {len(changed)} changed"
     }
+
+
+def restore_room_configuration(controller: 'HueController', saved_file_path: str, skip_confirmation: bool = False) -> bool:
+    """Restore room configuration from a saved backup file.
+
+    Applies all behaviour instances (switch programmes) from the saved backup to the bridge.
+    This restores the button mappings for the room to the saved state.
+
+    Args:
+        controller: HueController instance
+        saved_file_path: Path to saved room JSON file
+        skip_confirmation: If True, skip confirmation prompt (use with caution!)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Load saved configuration
+        with open(saved_file_path, 'r') as f:
+            saved = json.load(f)
+
+        room_name = saved['summary']['room_name']
+        behaviours = saved.get('behaviours', [])
+
+        if not behaviours:
+            click.echo(f"No behaviour instances to restore for '{room_name}'.")
+            return False
+
+        # Display what will be restored
+        click.echo(f"\n=== Restoring Room Configuration: {room_name} ===\n")
+        click.echo(f"Saved at:    {saved['saved_at']}")
+        click.echo(f"Source file: {saved_file_path}\n")
+        click.echo(f"Will restore {len(behaviours)} switch button programme(s):\n")
+
+        for behav in behaviours:
+            name = behav.get('metadata', {}).get('name', 'Unknown')
+            enabled = behav.get('enabled', False)
+            status = "✓ Enabled" if enabled else "✗ Disabled"
+            click.echo(f"  • {name} ({status})")
+
+        click.echo()
+
+        # Ask for confirmation unless skipped
+        if not skip_confirmation:
+            if not click.confirm("Do you want to apply this configuration to the bridge?"):
+                click.echo("Restore cancelled.")
+                return False
+
+        # Apply each behaviour instance
+        success_count = 0
+        fail_count = 0
+
+        click.echo("\nApplying configurations...\n")
+
+        for behav in behaviours:
+            behav_id = behav['id']
+            name = behav.get('metadata', {}).get('name', 'Unknown')
+
+            # Extract the configuration part (the part that gets sent to the API)
+            # The API expects just the configuration, not the full behaviour object
+            config = {
+                'enabled': behav.get('enabled', True),
+                'configuration': behav.get('configuration', {}),
+                'metadata': behav.get('metadata', {})
+            }
+
+            # Apply the configuration
+            result = controller.update_behaviour_instance(behav_id, config)
+
+            if result:
+                click.echo(f"  ✓ {name}")
+                success_count += 1
+            else:
+                click.echo(click.style(f"  ✗ {name} - Failed to update", fg='red'))
+                fail_count += 1
+
+        # Summary
+        click.echo()
+        if fail_count == 0:
+            click.echo(click.style(f"✓ Successfully restored all {success_count} programme(s)", fg='green'))
+            return True
+        else:
+            click.echo(click.style(f"⚠ Partial success: {success_count} restored, {fail_count} failed", fg='yellow'))
+            return False
+
+    except FileNotFoundError:
+        click.echo(f"Error: File not found: {saved_file_path}")
+        return False
+    except json.JSONDecodeError:
+        click.echo(f"Error: Invalid JSON in file: {saved_file_path}")
+        return False
+    except Exception as e:
+        click.echo(f"Error restoring room configuration: {e}")
+        return False

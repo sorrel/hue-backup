@@ -178,6 +178,7 @@ def help_command():
             ("cache-info", "Show cache status and age"),
             ("save-room <room>", "Save room config to timestamped file"),
             ("diff-room <file>", "Compare saved room with current state"),
+            ("restore-room <file>", "Restore room config from saved backup"),
         ]),
         ("STATUS COMMANDS (use cache)", [
             ("setup", "Show bridge configuration and test connection"),
