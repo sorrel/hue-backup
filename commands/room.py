@@ -10,9 +10,12 @@ import click
 from models.room import (
     save_room_configuration,
     diff_room_configuration,
+    restore_room_configuration,
     SAVED_ROOMS_DIR
 )
 from models.utils import get_cache_controller
+from core.controller import HueController
+from core.cache import reload_cache
 
 
 def register_room_commands(cli):
@@ -23,6 +26,7 @@ def register_room_commands(cli):
     """
     cli.add_command(save_room_command)
     cli.add_command(diff_room_command)
+    cli.add_command(restore_room_command)
 
 
 @click.command(name='save-room')
@@ -87,12 +91,16 @@ def save_room_command(room_name: str, auto_reload: bool):
 @click.command(name='diff-room')
 @click.argument('saved_file')
 @click.option('--verbose', '-v', is_flag=True, help='Show ephemeral state changes (light levels, on/off)')
+@click.option('--reload', '-r', is_flag=True, help='Force cache reload before comparing (ensures live comparison)')
 @click.option('--auto-reload/--no-auto-reload', default=True, help='Auto-reload stale cache (default: yes)')
-def diff_room_command(saved_file: str, verbose: bool, auto_reload: bool):
+def diff_room_command(saved_file: str, verbose: bool, reload: bool, auto_reload: bool):
     """Compare saved room configuration with current state.
 
     Shows section-by-section differences between a saved room backup
     and the current configuration in the cache.
+
+    Use --reload to force a fresh cache reload before comparing, ensuring
+    you're comparing against the live bridge state (recommended before restoring).
 
     \b
     Compares:
@@ -110,9 +118,25 @@ def diff_room_command(saved_file: str, verbose: bool, auto_reload: bool):
       uv run python hue_control.py diff-room "Living"
       uv run python hue_control.py diff-room "Office upstairs"
 
+      # Force reload to compare against live bridge state
+      uv run python hue_control.py diff-room "Living" --reload
+
       # Most recent file of any room
       uv run python hue_control.py diff-room $(ls -t cache/saved-rooms/*.json | head -1)
     """
+    # Force reload if requested
+    if reload:
+        click.echo("Reloading cache from bridge...")
+        # Create a live controller to reload cache
+        temp_controller = HueController()
+        if not temp_controller.connect():
+            click.secho("✗ Failed to connect to bridge", fg='red')
+            return
+        if not reload_cache(temp_controller):
+            click.secho("✗ Failed to reload cache", fg='red')
+            return
+        click.echo()
+
     cache_controller = get_cache_controller(auto_reload)
     if not cache_controller:
         return
@@ -281,3 +305,110 @@ def diff_room_command(saved_file: str, verbose: bool, auto_reload: bool):
         import traceback
         traceback.print_exc()
         click.echo()
+
+
+@click.command(name='restore-room')
+@click.argument('saved_file')
+@click.option('--yes', '-y', is_flag=True, help='Skip confirmation prompt')
+def restore_room_command(saved_file: str, yes: bool):
+    """Restore room configuration from a saved backup.
+
+    Applies all behaviour instances (switch button programmes) from the saved
+    backup to the bridge, restoring the room to the saved state.
+
+    \b
+    What gets restored:
+      - All behaviour instances (switch button programmes)
+      - Button configurations (scene cycles, time-based schedules, etc.)
+
+    \b
+    What does NOT get restored:
+      - Light states (on/off, brightness, colour)
+      - Scene definitions (use the Hue app to manage scenes)
+
+    \b
+    Examples:
+      # Restore with specific file
+      uv run python hue_control.py restore-room cache/saved-rooms/2025-12-13_16-13_Living_room.json
+
+      # Use room name - finds most recent backup for that room
+      uv run python hue_control.py restore-room "Living"
+      uv run python hue_control.py restore-room "Office upstairs"
+
+      # Skip confirmation prompt
+      uv run python hue_control.py restore-room "Living" --yes
+
+    \b
+    WARNING: This will modify your Hue bridge configuration!
+    Always verify with 'diff-room' first to see what will change.
+    """
+    # Create a live controller (not cache-based) for write operations
+    controller = HueController()
+    if not controller.connect():
+        click.secho("✗ Failed to connect to bridge", fg='red')
+        return
+
+    # Check if saved_file is a path or a room name
+    saved_path = Path(saved_file)
+
+    # If it's not an existing file, try to find saved files by room name
+    if not saved_path.exists():
+        # Ensure saved-rooms directory exists
+        if not SAVED_ROOMS_DIR.exists():
+            click.secho(f"✗ No saved rooms found in {SAVED_ROOMS_DIR}", fg='red')
+            return
+
+        # Find all saved files matching the room name
+        matching_files = []
+        room_name_lower = saved_file.lower()
+
+        for saved_file_path in SAVED_ROOMS_DIR.glob('*.json'):
+            # Extract room name from filename: YYYY-MM-DD_HH-MM_RoomName.json
+            filename = saved_file_path.stem  # Remove .json
+            # Split by timestamp pattern, room name is after second underscore
+            parts = filename.split('_')
+            if len(parts) >= 3:
+                # Room name starts from index 2 (after date and time)
+                room_part = '_'.join(parts[2:])
+                if room_name_lower in room_part.lower():
+                    matching_files.append(saved_file_path)
+
+        if not matching_files:
+            click.secho(f"✗ No saved room files found matching '{saved_file}'", fg='red')
+            click.echo(f"\nAvailable saved rooms in {SAVED_ROOMS_DIR}:")
+            all_files = sorted(SAVED_ROOMS_DIR.glob('*.json'), key=lambda x: x.stat().st_mtime, reverse=True)
+            if all_files:
+                for f in all_files[:10]:  # Show up to 10 most recent
+                    timestamp = f.stem.split('_')[:2]
+                    room_name = '_'.join(f.stem.split('_')[2:])
+                    click.echo(f"  {' '.join(timestamp)} - {room_name}")
+                if len(all_files) > 10:
+                    click.echo(f"  ... and {len(all_files) - 10} more")
+            else:
+                click.echo("  (none)")
+            return
+
+        # Sort by modification time (most recent first)
+        matching_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        saved_path = matching_files[0]
+
+        # Show which file we're using
+        if len(matching_files) > 1:
+            click.echo(f"\nFound {len(matching_files)} saved files matching '{saved_file}'")
+            click.echo(f"Using most recent: {click.style(saved_path.name, fg='cyan')}")
+        else:
+            click.echo(f"\nUsing: {click.style(saved_path.name, fg='cyan')}")
+
+    # Call the restore function
+    try:
+        success = restore_room_configuration(controller, str(saved_path), skip_confirmation=yes)
+
+        if not success:
+            click.echo()
+            click.secho("⚠ Restore incomplete or cancelled", fg='yellow')
+
+    except Exception as e:
+        click.echo()
+        click.secho(f"✗ Error restoring room: {e}", fg='red')
+        import traceback
+        traceback.print_exc()
