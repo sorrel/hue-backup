@@ -139,8 +139,6 @@ cache/                   # Local cache (gitignored)
 ```bash
 # Run tests
 uv run pytest -v
-
-# British English throughout (colour, behaviour, etc.)
 ```
 
 ## Button Event Codes
@@ -152,7 +150,7 @@ Hue Dimmer Switch buttons generate 4-digit codes: `XYYY`
 
 Example: `1002` = On button, short release
 
-Use `discover` to find your specific event codes.
+Use `discover` to find your specific event codes. This area not developed/used.
 
 ## Troubleshooting
 
@@ -175,4 +173,4 @@ Falls back to local config automatically. Check `op signin` if you want 1Passwor
 - API keys don't expire (one-time setup)
 - Cache auto-refreshes after 24 hours
 - SSL warnings suppressed (bridges use self-signed certs)
-- Local API only (no cloud/remote API)
+- Local API only (no cloud/remote API), apart from the inital bridge finder API.
