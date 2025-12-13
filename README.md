@@ -1,10 +1,10 @@
-# Hue Lights CLI
+# Hue Control CLI
 
-A Python CLI for programming Philips Hue wall switches and inspecting your Hue setup. Designed to be used by AI assistants (like Claude Code) as a local tool for home automation tasks.
+A Python CLI for programming Philips Hue wall switches and inspecting your Hue setup. Designed to be used by AI assistants (like Claude Code) as a local tool for home automation tasks, but can also be used directly on the command line.
 
-**Primary use case:** Map button presses on physical Hue switches to scene activations, and query switch configurations.
+**Primary use case:** Map button presses on physical Hue switches to scene activations, and query switch configurations. You can back-up and restore room configurations, so you can change the lights seasonally.
 
-**Not a general light controller** - use the Hue app for that. This tool focuses on switch programming and inspection.
+**Not a general light controller** - use the Hue app for that. This tool focuses on switch, zone and room programming, not day to day light controls.
 
 ## Quick Start
 
