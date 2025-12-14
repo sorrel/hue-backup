@@ -154,3 +154,258 @@ def monitor_command():
                 click.echo(f"  Error: Failed to activate scene")
 
     controller.monitor_buttons(on_button_event)
+
+
+@click.command(name='program-button')
+@click.argument('switch_name')
+@click.argument('button_number', type=click.IntRange(1, 4))
+@click.option('--scenes', '-s', help='Comma-separated scene names for scene cycle (e.g., "Read,Concentrate,Relax")')
+@click.option('--time-based', is_flag=True, help='Enable time-based schedule mode')
+@click.option('--slot', multiple=True, help='Time slot: HH:MM=SceneName (requires --time-based, can be used multiple times)')
+@click.option('--scene', help='Single scene to activate on button press')
+@click.option('--dim-up', is_flag=True, help='Configure button for dim up (hold/repeat action)')
+@click.option('--dim-down', is_flag=True, help='Configure button for dim down (hold/repeat action)')
+@click.option('--long-press', help='Scene name or action for long press (e.g., "All Off", "Home Off", or scene name)')
+@click.option('--yes', '-y', is_flag=True, help='Skip confirmation prompt')
+@click.option('--auto-reload/--no-auto-reload', default=True, help='Auto-reload stale cache (default: yes)')
+def program_button_command(switch_name, button_number, scenes, time_based, slot,
+                           scene, dim_up, dim_down, long_press, yes, auto_reload):
+    """Programme a button on a Hue switch to perform an action.
+
+    This modifies the bridge-native button configuration (not local CLI mappings).
+    Use for seasonal programming workflows: save → modify → restore.
+
+    \b
+    BUTTON NUMBERS:
+      1 = ON button
+      2 = DIM UP button
+      3 = DIM DOWN button
+      4 = OFF button
+
+    \b
+    Examples:
+      # Scene cycle
+      uv run python hue_control.py program-button "Office dimmer" 1 \\
+        --scenes "Read,Concentrate,Relax"
+
+      # Time-based schedule
+      uv run python hue_control.py program-button "Living dimmer" 1 --time-based \\
+        --slot 07:00="Morning" --slot 17:00="Evening" --slot 23:00="Night"
+
+      # Single scene
+      uv run python hue_control.py program-button "Bedroom dimmer" 4 \\
+        --scene "Relax"
+
+      # Dimming actions
+      uv run python hue_control.py program-button "Office dimmer" 2 --dim-up
+      uv run python hue_control.py program-button "Office dimmer" 3 --dim-down
+
+      # Long press
+      uv run python hue_control.py program-button "Office dimmer" 1 \\
+        --scenes "Read,Relax" --long-press "All Off"
+    """
+    from models.button_config import (
+        validate_program_button_args, find_switch_behaviour, get_all_switch_names,
+        resolve_scene_names, parse_time_slot, build_scene_cycle_config,
+        build_time_based_config, build_single_scene_config, build_dimming_config,
+        build_long_press_config, update_button_configuration
+    )
+    from models.utils import find_similar_strings
+
+    # 1. Validate arguments
+    is_valid, error_msg = validate_program_button_args(
+        scenes, time_based, slot, scene, dim_up, dim_down, long_press
+    )
+    if not is_valid:
+        click.secho(f"✗ {error_msg}", fg='red')
+        click.echo("\nRun 'program-button --help' for usage information")
+        return
+
+    # 2. Connect to bridge (cache for reading)
+    cache_controller = HueController(use_cache=True)
+    if auto_reload:
+        if not cache_controller.ensure_fresh_cache():
+            click.echo("Failed to ensure fresh cache.")
+            return
+
+    # 3. Find switch behaviour instance
+    result = find_switch_behaviour(switch_name, cache_controller)
+
+    if result is None:
+        # Check if no matches or multiple matches
+        all_switches = get_all_switch_names(cache_controller)
+
+        if not any(switch_name.lower() in s.lower() for s in all_switches):
+            # No matches
+            click.secho(f"✗ Switch '{switch_name}' not found", fg='red')
+
+            # Show similar switches
+            similar = find_similar_strings(switch_name, all_switches, limit=3)
+            if similar:
+                click.echo("\nDid you mean one of these?")
+                for name in similar:
+                    click.secho(f"  • {name}", fg='green')
+            else:
+                click.echo("\nAvailable switches:")
+                for name in all_switches[:10]:
+                    click.secho(f"  • {name}", fg='green')
+                if len(all_switches) > 10:
+                    click.echo(f"  ... and {len(all_switches) - 10} more")
+        else:
+            # Multiple matches
+            matches = [s for s in all_switches if switch_name.lower() in s.lower()]
+            click.secho(f"✗ Multiple switches match '{switch_name}':", fg='red')
+            for name in matches:
+                click.secho(f"  • {name}", fg='yellow')
+            click.echo("\nPlease be more specific.")
+
+        return
+
+    behaviour, device_name, device = result
+    instance_id = behaviour['id']
+
+    # 4. Build button configuration based on action type
+    button_config = {}
+    short_press_desc = None
+    long_press_desc = None
+
+    all_scenes = cache_controller.get_scenes()
+
+    # Handle short press action
+    if scenes:
+        # Scene cycle
+        scene_names = [s.strip() for s in scenes.split(',')]
+        scene_ids = resolve_scene_names(scene_names, all_scenes)
+        if not scene_ids:
+            return  # Error already shown
+
+        button_config.update(build_scene_cycle_config(scene_ids))
+        short_press_desc = f"Cycle through {len(scene_names)} scenes: {', '.join(scene_names)}"
+
+    elif time_based:
+        # Time-based schedule
+        time_slots_parsed = []
+        for slot_str in slot:
+            try:
+                hour, minute, scene_name = parse_time_slot(slot_str)
+                time_slots_parsed.append((hour, minute, scene_name))
+            except ValueError as e:
+                click.secho(f"✗ {e}", fg='red')
+                click.echo("\nExpected format: HH:MM=SceneName")
+                click.echo("Example: --slot 07:00=\"Morning\" --slot 20:00=\"Evening\"")
+                return
+
+        # Resolve scene names in time slots
+        time_scene_names = [ts[2] for ts in time_slots_parsed]
+        time_scene_ids = resolve_scene_names(time_scene_names, all_scenes)
+        if not time_scene_ids:
+            return
+
+        # Replace scene names with IDs
+        time_slots_with_ids = [
+            (hour, minute, scene_id)
+            for (hour, minute, _), scene_id in zip(time_slots_parsed, time_scene_ids)
+        ]
+
+        button_config.update(build_time_based_config(time_slots_with_ids))
+        short_press_desc = f"Time-based schedule ({len(time_slots_with_ids)} slots)"
+
+    elif scene:
+        # Single scene
+        scene_ids = resolve_scene_names([scene], all_scenes)
+        if not scene_ids:
+            return
+
+        button_config.update(build_single_scene_config(scene_ids[0]))
+        short_press_desc = f"Activate scene: {scene}"
+
+    elif dim_up:
+        button_config.update(build_dimming_config('dim_up'))
+        short_press_desc = "Dim up (hold to brighten)"
+
+    elif dim_down:
+        button_config.update(build_dimming_config('dim_down'))
+        short_press_desc = "Dim down (hold to dim)"
+
+    # Handle long press action
+    if long_press:
+        valid_actions = ['all off', 'home off', 'all_off', 'home_off']
+        if long_press.lower() in valid_actions:
+            button_config.update(build_long_press_config(long_press, None))
+            long_press_desc = long_press.title()
+        else:
+            # Assume it's a scene name
+            lp_scene_ids = resolve_scene_names([long_press], all_scenes)
+            if not lp_scene_ids:
+                return
+
+            button_config.update(build_long_press_config(long_press, lp_scene_ids[0]))
+            long_press_desc = f"Activate scene: {long_press}"
+
+    # 5. Show confirmation preview
+    button_labels = {1: 'ON', 2: 'DIM UP', 3: 'DIM DOWN', 4: 'OFF'}
+    button_label = button_labels.get(button_number, str(button_number))
+
+    click.echo()
+    click.secho("=== Button Programme Configuration ===", fg='cyan', bold=True)
+    click.echo()
+    click.echo(f"Switch:  {click.style(device_name, fg='green')}")
+    click.echo(f"Button:  {click.style(f'{button_number} ({button_label})', fg='yellow')}")
+    click.echo()
+
+    if short_press_desc:
+        click.echo(f"Short press:  {short_press_desc}")
+        if time_based:
+            # Show time slots
+            for hour, minute, scene_id in sorted(time_slots_with_ids, key=lambda x: (x[0], x[1])):
+                scene_name = next((s.get('metadata', {}).get('name', 'Unknown')
+                                  for s in all_scenes if s['id'] == scene_id), 'Unknown')
+                click.echo(f"              {hour:02d}:{minute:02d} → {scene_name}")
+
+    if long_press_desc:
+        click.echo(f"Long press:   {long_press_desc}")
+
+    click.echo()
+
+    if not yes:
+        if not click.confirm("Proceed with programming this button?", default=True):
+            click.echo("Cancelled.")
+            return
+
+    # 6. Update behaviour instance with write-through cache
+    write_controller = HueController()  # Non-cache for writes
+    if not write_controller.connect():
+        return
+
+    # Get button resources for RID lookup
+    buttons = write_controller.get_buttons()
+    button_lookup = {b['id']: b for b in buttons}
+
+    try:
+        updated_config = update_button_configuration(
+            behaviour, button_number, button_config, button_lookup
+        )
+    except ValueError as e:
+        click.secho(f"✗ {e}", fg='red')
+        click.echo(f"\nUse 'button-data -r \"{device_name}\"' to see available buttons.")
+        return
+
+    # Apply changes via write-through cache
+    if write_controller.update_behaviour_instance(instance_id, updated_config):
+        click.echo()
+        click.secho(f"✓ Button configuration updated successfully", fg='green')
+        click.echo()
+        click.echo(f"Switch:  {device_name}")
+        click.echo(f"Button:  {button_number} - {button_label}")
+        if short_press_desc:
+            click.echo(f"Action:  {short_press_desc}")
+        if long_press_desc:
+            click.echo(f"Long:    {long_press_desc}")
+        click.echo()
+        click.echo("Press the button on your physical switch to test the new configuration.")
+    else:
+        click.secho(f"✗ Failed to update button configuration", fg='red')
+        click.echo("\nPossible reasons:")
+        click.echo("  • Bridge connection lost")
+        click.echo("  • Invalid configuration (check logs)")
+        click.echo("  • Scene IDs no longer valid")

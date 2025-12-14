@@ -65,7 +65,8 @@ from commands.mapping import (
     map_command,
     mappings_command,
     discover_command,
-    monitor_command
+    monitor_command,
+    program_button_command
 )
 
 # Disable SSL warnings for self-signed certificate
@@ -132,6 +133,7 @@ cli.add_command(map_command, name='map')
 cli.add_command(mappings_command, name='mappings')
 cli.add_command(discover_command, name='discover')
 cli.add_command(monitor_command, name='monitor')
+cli.add_command(program_button_command, name='program-button')
 
 
 if __name__ == '__main__':

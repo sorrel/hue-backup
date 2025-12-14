@@ -201,6 +201,7 @@ def help_command():
             ("discover", "Press buttons to see event codes"),
             ("map <sensor> <btn> <scene>", "Create button → scene mapping"),
             ("mappings", "View all configured mappings"),
+            ("program-button <switch> <btn>", "Programme button actions on switches (bridge-native)"),
             ("switch-info <sensor_id>", "Detailed info for one switch (cached)"),
         ]),
         ("MONITORING & CONTROL", [
