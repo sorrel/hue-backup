@@ -4,7 +4,7 @@ A Python CLI for programming Philips Hue switches and inspecting the Hue setup. 
 
 **Primary use case:** Map button presses on physical Hue switches to scene activations, and query switch configurations. You can back-up and restore room configurations, so you can change the lights seasonally.
 
-**Not a general light controller** - use the Hue app for that. This tool focuses on switch, zone and room programming, not day to day light controls.
+**Not a general light controller** - use the Hue app for that. This tool focuses on switch, zone and room programming, not day to day light controls. Think of it as a terraform for the Hue lighting system.
 
 ## Quick Start
 
