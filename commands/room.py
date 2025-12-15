@@ -47,8 +47,8 @@ def save_room_command(room_name: str, auto_reload: bool):
 
     \b
     Examples:
-      uv run python hue_control.py save-room "Living"
-      uv run python hue_control.py save-room "Bedroom D"
+      uv run python hue_backup.py save-room "Living"
+      uv run python hue_backup.py save-room "Bedroom D"
 
     Files are saved to: cache/saved-rooms/YYYY-MM-DD_HH-MM_RoomName.json
     """
@@ -112,17 +112,17 @@ def diff_room_command(saved_file: str, verbose: bool, reload: bool, auto_reload:
     \b
     Examples:
       # Compare with specific file
-      uv run python hue_control.py diff-room cache/saved-rooms/2025-12-10_13-46_Living_room.json
+      uv run python hue_backup.py diff-room cache/saved-rooms/2025-12-10_13-46_Living_room.json
 
       # Use room name - finds most recent backup for that room
-      uv run python hue_control.py diff-room "Living"
-      uv run python hue_control.py diff-room "Office upstairs"
+      uv run python hue_backup.py diff-room "Living"
+      uv run python hue_backup.py diff-room "Office upstairs"
 
       # Force reload to compare against live bridge state
-      uv run python hue_control.py diff-room "Living" --reload
+      uv run python hue_backup.py diff-room "Living" --reload
 
       # Most recent file of any room
-      uv run python hue_control.py diff-room $(ls -t cache/saved-rooms/*.json | head -1)
+      uv run python hue_backup.py diff-room $(ls -t cache/saved-rooms/*.json | head -1)
     """
     # Force reload if requested
     if reload:
@@ -329,14 +329,14 @@ def restore_room_command(saved_file: str, yes: bool):
     \b
     Examples:
       # Restore with specific file
-      uv run python hue_control.py restore-room cache/saved-rooms/2025-12-13_16-13_Living_room.json
+      uv run python hue_backup.py restore-room cache/saved-rooms/2025-12-13_16-13_Living_room.json
 
       # Use room name - finds most recent backup for that room
-      uv run python hue_control.py restore-room "Living"
-      uv run python hue_control.py restore-room "Office upstairs"
+      uv run python hue_backup.py restore-room "Living"
+      uv run python hue_backup.py restore-room "Office upstairs"
 
       # Skip confirmation prompt
-      uv run python hue_control.py restore-room "Living" --yes
+      uv run python hue_backup.py restore-room "Living" --yes
 
     \b
     WARNING: This will modify your Hue bridge configuration!

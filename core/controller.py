@@ -230,7 +230,7 @@ class HueController:
         Authentication priority:
         1. Use bridge_ip/api_token if provided to __init__()
         2. Try 1Password
-        3. Try local config file (~/.hue_control/config.json)
+        3. Try local config file (~/.hue_backup/config.json)
         4. Interactive setup (if interactive=True)
 
         Args:
@@ -251,7 +251,7 @@ class HueController:
 
                 if not credentials:
                     click.echo("Error: Could not obtain authentication credentials.")
-                    click.echo("Run 'uv run python hue_control.py configure' for interactive setup.")
+                    click.echo("Run 'uv run python hue_backup.py configure' for interactive setup.")
                     return False
 
                 self.bridge_ip = credentials['bridge_ip']

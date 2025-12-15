@@ -1,7 +1,7 @@
 [project]
-name = "hue-control"
+name = "hue-backup"
 version = "0.1.0"
-description = "CLI for controlling Philips Hue lights and programming scenes into switches"
+description = "CLI for backing up and restoring Philips Hue switch configurations and room settings"
 requires-python = ">=3.8"
 dependencies = [
     "click>=8.0.0",
@@ -14,7 +14,7 @@ dev = [
 ]
 
 [project.scripts]
-hue = "hue_control:cli"
+hue = "hue_backup:cli"
 
 [build-system]
 requires = ["hatchling"]

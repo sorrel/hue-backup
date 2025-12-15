@@ -33,9 +33,9 @@ def scene_details_command(room: str, auto_reload: bool):
 
     \b
     Examples:
-      uv run python hue_control.py scene-details              # All scenes
-      uv run python hue_control.py scene-details -r lounge    # Lounge scenes only
-      uv run python hue_control.py scene-details --no-auto-reload  # Don't auto-reload
+      uv run python hue_backup.py scene-details              # All scenes
+      uv run python hue_backup.py scene-details -r lounge    # Lounge scenes only
+      uv run python hue_backup.py scene-details --no-auto-reload  # Don't auto-reload
     """
     cache_controller = get_cache_controller(auto_reload)
     if not cache_controller:
@@ -406,9 +406,9 @@ def button_data_command(room: str, auto_reload: bool):
 
     \b
     Examples:
-      uv run python hue_control.py button-data              # Show all wall controls
-      uv run python hue_control.py button-data -r lounge    # Only lounge controls
-      uv run python hue_control.py button-data -r bed       # All bedroom controls
+      uv run python hue_backup.py button-data              # Show all wall controls
+      uv run python hue_backup.py button-data -r lounge    # Only lounge controls
+      uv run python hue_backup.py button-data -r bed       # All bedroom controls
     """
     cache_controller = get_cache_controller(auto_reload)
     if not cache_controller:
@@ -732,9 +732,9 @@ def switch_status_command(table: bool, room: str, auto_reload: bool):
 
     \b
     Examples:
-      uv run python hue_control.py switch-status          # Box format, all switches
-      uv run python hue_control.py switch-status -t       # Table format
-      uv run python hue_control.py switch-status -r lounge  # Only lounge switches
+      uv run python hue_backup.py switch-status          # Box format, all switches
+      uv run python hue_backup.py switch-status -t       # Table format
+      uv run python hue_backup.py switch-status -r lounge  # Only lounge switches
     """
     cache_controller = get_cache_controller(auto_reload)
     if not cache_controller:
@@ -937,9 +937,9 @@ def switch_info_command(sensor_id: str, room: str, auto_reload: bool):
 
     \b
     Examples:
-      uv run python hue_control.py switch-info 2           # Info for sensor ID 2
-      uv run python hue_control.py switch-info office      # Fuzzy match on name/room
-      uv run python hue_control.py switch-info -r lounge   # All lounge switches
+      uv run python hue_backup.py switch-info 2           # Info for sensor ID 2
+      uv run python hue_backup.py switch-info office      # Fuzzy match on name/room
+      uv run python hue_backup.py switch-info -r lounge   # All lounge switches
     """
     # Validate arguments
     if not sensor_id and not room:

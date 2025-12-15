@@ -1,4 +1,4 @@
-"""Pytest configuration and fixtures for Hue control tests."""
+"""Pytest configuration and fixtures for Hue backup tests."""
 
 import pytest
 from pathlib import Path

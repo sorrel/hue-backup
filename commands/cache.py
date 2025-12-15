@@ -72,7 +72,7 @@ def cache_info_command():
         click.echo(f"Cache file: {CONFIG_FILE}")
         click.echo()
         click.echo("Run 'reload' to create the cache:")
-        click.echo("  uv run python hue_control.py reload")
+        click.echo("  uv run python hue_backup.py reload")
         click.echo()
         return
 
@@ -105,7 +105,7 @@ def cache_info_command():
             click.echo(f"Status:       {click.style('STALE (>24 hours old)', fg='red')}")
             click.echo()
             click.echo("Run 'reload' to refresh the cache:")
-            click.echo("  uv run python hue_control.py reload")
+            click.echo("  uv run python hue_backup.py reload")
         else:
             click.echo(f"Status:       {click.style('Fresh', fg='green')}")
 

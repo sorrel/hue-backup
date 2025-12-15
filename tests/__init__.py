@@ -1,1 +1,1 @@
-"""Test suite for Hue control."""
+"""Test suite for Hue backup."""

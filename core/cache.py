@@ -11,7 +11,7 @@ import click
 from core.config import save_config, CONFIG_FILE
 
 if TYPE_CHECKING:
-    from hue_control import HueController
+    from hue_backup import HueController
 
 
 def reload_cache(controller: 'HueController') -> bool:

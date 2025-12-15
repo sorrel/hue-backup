@@ -4,7 +4,7 @@ A Python CLI for programming Philips Hue switches and inspecting the Hue setup. 
 
 **Primary use case:** Map button presses on physical Hue switches to scene activations, and query switch configurations. You can back-up and restore room configurations, so you can change the lights seasonally.
 
-**Not a general light controller** - use the Hue app for that. This tool focuses on switch, zone and room programming, not day to day light controls.
+**Not a general light controller** - use the Hue app for that. This tool focuses on switch, zone and room programming, not day to day light controls. Think of it as a terraform for the Hue lighting system.
 
 ## Quick Start
 
@@ -13,16 +13,16 @@ A Python CLI for programming Philips Hue switches and inspecting the Hue setup. 
 uv sync --extra dev
 
 # First-time setup (discovers bridge, creates API token)
-uv run python hue_control.py configure
+uv run python hue_backup.py configure
 
 # Check your switches
-uv run python hue_control.py switch-status
+uv run python hue_backup.py switch-status
 
 # See what's programmed into wall controls
-uv run python hue_control.py button-data
+uv run python hue_backup.py button-data
 
 # Programme a button (NEW!)
-uv run python hue_control.py program-button "Office dimmer" 1 --scenes "Read,Relax"
+uv run python hue_backup.py program-button "Office dimmer" 1 --scenes "Read,Relax"
 ```
 
 ## Key Commands
@@ -125,13 +125,13 @@ All commands support `-h` for help.
 The tool tries these in order:
 
 1. **1Password** - If `op` CLI available, reads from vault (see below)
-2. **Local config** - `~/.hue_control/config.json`
+2. **Local config** - `~/.hue_backup/config.json`
 3. **Interactive** - Prompts to run `configure`
 
 ### Option A: Interactive Setup (Recommended)
 
 ```bash
-uv run python hue_control.py configure
+uv run python hue_backup.py configure
 ```
 
 Discovers your bridge, guides you through link button auth, saves credentials.
@@ -151,14 +151,14 @@ export HUE_1PASSWORD_ITEM="MyBridge"
 ### Option C: Manual Config
 
 ```bash
-mkdir -p ~/.hue_control
-cat > ~/.hue_control/config.json << 'EOF'
+mkdir -p ~/.hue_backup
+cat > ~/.hue_backup/config.json << 'EOF'
 {
   "bridge_ip": "192.168.1.100",
   "api_token": "your-api-token-here"
 }
 EOF
-chmod 600 ~/.hue_control/config.json
+chmod 600 ~/.hue_backup/config.json
 ```
 
 ## Using with AI Assistants
@@ -174,19 +174,19 @@ Example workflow with Claude Code:
 
 ```bash
 # "What scenes are on my living room dimmer?"
-uv run python hue_control.py button-data -r "Living"
+uv run python hue_backup.py button-data -r "Living"
 
 # "Save the current bedroom setup"
-uv run python hue_control.py save-room "Bedroom"
+uv run python hue_backup.py save-room "Bedroom"
 
 # "What changed since I saved it?"
-uv run python hue_control.py diff-room "Bedroom"
+uv run python hue_backup.py diff-room "Bedroom"
 ```
 
 ## Project Structure
 
 ```
-hue_control.py           # Entry point
+hue_backup.py            # Entry point
 core/                    # Controller, auth, cache, config
 models/                  # Room operations, button config, utilities
   └── button_config.py   # Button programming business logic (NEW)
@@ -287,13 +287,13 @@ Use `discover` to find your specific event codes. This area not developed/used.
 
 **Can't connect?**
 ```bash
-uv run python hue_control.py setup  # Shows auth status
-uv run python hue_control.py configure --reconfigure  # Start fresh
+uv run python hue_backup.py setup  # Shows auth status
+uv run python hue_backup.py configure --reconfigure  # Start fresh
 ```
 
 **Stale data?**
 ```bash
-uv run python hue_control.py reload  # Force cache refresh
+uv run python hue_backup.py reload  # Force cache refresh
 ```
 
 **1Password not working?**

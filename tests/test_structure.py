@@ -22,7 +22,7 @@ def test_init_files_exist(project_root):
 
 def test_main_script_exists(project_root):
     """Test that main entry point exists."""
-    assert (project_root / "hue_control.py").exists()
+    assert (project_root / "hue_backup.py").exists()
 
 
 def test_cache_structure(cache_dir, saved_rooms_dir):

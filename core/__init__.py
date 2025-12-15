@@ -1,4 +1,4 @@
-"""Core functionality for Hue control.
+"""Core functionality for Hue backup.
 
 This package contains:
 - controller: HueController class for API interaction

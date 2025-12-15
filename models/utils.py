@@ -1,4 +1,4 @@
-"""Utility functions for Hue control.
+"""Utility functions for Hue backup.
 
 This module contains helper functions used across the application:
 - display_width: Calculate terminal display width for Unicode/emojis
@@ -105,7 +105,7 @@ def get_cache_controller(auto_reload: bool = True):
     import sys
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-    from hue_control import HueController
+    from hue_backup import HueController
 
     cache_ctrl = HueController(use_cache=True)
     if auto_reload:

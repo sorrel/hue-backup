@@ -11,7 +11,7 @@ from typing import Optional, Dict, List, TYPE_CHECKING
 import click
 
 if TYPE_CHECKING:
-    from hue_control import HueController
+    from hue_backup import HueController
 
 # Constants
 SAVED_ROOMS_DIR = Path(__file__).parent.parent / 'cache' / 'saved-rooms'

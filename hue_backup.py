@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Hue Lights Control CLI
-Control Philips Hue lights, brightness, colours, scenes, and switches.
+Hue Backup CLI
+Back up and restore Philips Hue switch configurations and room settings.
 """
 
 import click
@@ -80,13 +80,13 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         'max_content_width': 999  # Very wide to prevent wrapping on wide terminals
     }
 )
-@click.version_option(version='0.1.0', prog_name='Hue Control')
+@click.version_option(version='0.1.0', prog_name='Hue Backup')
 def cli():
-    """Hue Lights Control CLI - Manage your Philips Hue lights and switches.
+    """Hue Backup CLI - Back up and restore Philips Hue switch configurations.
 
-Main focus: Programme scenes into switches and monitor button presses.
+Main focus: Programme scenes into switches and save/restore room configurations.
 
-Authentication: 1Password → Local config (~/.hue_control/config.json) → Interactive setup
+Authentication: 1Password → Local config (~/.hue_backup/config.json) → Interactive setup
 Run 'configure' for first-time setup or 'setup' to check configuration.
 
 Use 'help' for a quick reference of all commands.
