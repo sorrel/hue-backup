@@ -18,7 +18,7 @@ def map_command(sensor_id: str, button_event: int, scene_id: str):
 
     \b
     Examples:
-      uv run python hue_control.py map 2 1002 abc123
+      uv run python hue_backup.py map 2 1002 abc123
       This maps button event 1002 on sensor 2 to scene abc123.
 
     \b
@@ -185,23 +185,23 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
     \b
     Examples:
       # Scene cycle
-      uv run python hue_control.py program-button "Office dimmer" 1 \\
+      uv run python hue_backup.py program-button "Office dimmer" 1 \\
         --scenes "Read,Concentrate,Relax"
 
       # Time-based schedule
-      uv run python hue_control.py program-button "Living dimmer" 1 --time-based \\
+      uv run python hue_backup.py program-button "Living dimmer" 1 --time-based \\
         --slot 07:00="Morning" --slot 17:00="Evening" --slot 23:00="Night"
 
       # Single scene
-      uv run python hue_control.py program-button "Bedroom dimmer" 4 \\
+      uv run python hue_backup.py program-button "Bedroom dimmer" 4 \\
         --scene "Relax"
 
       # Dimming actions
-      uv run python hue_control.py program-button "Office dimmer" 2 --dim-up
-      uv run python hue_control.py program-button "Office dimmer" 3 --dim-down
+      uv run python hue_backup.py program-button "Office dimmer" 2 --dim-up
+      uv run python hue_backup.py program-button "Office dimmer" 3 --dim-down
 
       # Long press
-      uv run python hue_control.py program-button "Office dimmer" 1 \\
+      uv run python hue_backup.py program-button "Office dimmer" 1 \\
         --scenes "Read,Relax" --long-press "All Off"
     """
     from models.button_config import (

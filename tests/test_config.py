@@ -28,10 +28,10 @@ class TestConstants:
         assert 'cache' in str(CONFIG_FILE)
 
     def test_user_config_file_path(self):
-        """USER_CONFIG_FILE should point to ~/.hue_control/config.json."""
+        """USER_CONFIG_FILE should point to ~/.hue_backup/config.json."""
         assert isinstance(USER_CONFIG_FILE, Path)
         assert USER_CONFIG_FILE.name == 'config.json'
-        assert '.hue_control' in str(USER_CONFIG_FILE)
+        assert '.hue_backup' in str(USER_CONFIG_FILE)
 
 
 class TestIsOpAvailable:

@@ -19,7 +19,7 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 # User configuration file location
-USER_CONFIG_FILE = Path.home() / '.hue_control' / 'config.json'
+USER_CONFIG_FILE = Path.home() / '.hue_backup' / 'config.json'
 
 
 def discover_bridges() -> List[Dict[str, str]]:
@@ -105,7 +105,7 @@ def select_bridge_interactive(bridges: List[Dict]) -> Optional[str]:
         return None
 
 
-def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_control#cli") -> Optional[str]:
+def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli") -> Optional[str]:
     """Create new API user via link button authentication.
 
     Requires the user to press the physical link button on the Hue bridge
@@ -334,7 +334,7 @@ def get_auth_credentials(interactive: bool = True) -> Optional[Dict[str, str]]:
 
     Priority order:
     1. 1Password (if available and configured)
-    2. Local config file (~/.hue_control/config.json)
+    2. Local config file (~/.hue_backup/config.json)
     3. Interactive setup (if interactive=True)
 
     Args:

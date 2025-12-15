@@ -18,8 +18,8 @@ def power_command(light_name: str, on: bool):
 
     \b
     Examples:
-      uv run python hue_control.py power "Bedroom" --on
-      uv run python hue_control.py power "Bedroom" --off
+      uv run python hue_backup.py power "Bedroom" --on
+      uv run python hue_backup.py power "Bedroom" --off
     """
     controller = HueController()
     if not controller.connect():
@@ -47,8 +47,8 @@ def brightness_command(light_name: str, brightness: int):
 
     \b
     Examples:
-      uv run python hue_control.py brightness "Bedroom" 200
-      uv run python hue_control.py brightness "Bedroom" 50
+      uv run python hue_backup.py brightness "Bedroom" 200
+      uv run python hue_backup.py brightness "Bedroom" 50
     """
     controller = HueController()
     if not controller.connect():
@@ -77,9 +77,9 @@ def colour_command(light_name: str, hue: Optional[int], sat: Optional[int], ct: 
 
     \b
     Examples:
-      uv run python hue_control.py colour "Bedroom" -u 10000 -s 254
-      uv run python hue_control.py colour "Bedroom" --ct 300
-      uv run python hue_control.py colour "Bedroom" -t 400
+      uv run python hue_backup.py colour "Bedroom" -u 10000 -s 254
+      uv run python hue_backup.py colour "Bedroom" --ct 300
+      uv run python hue_backup.py colour "Bedroom" -t 400
     """
     controller = HueController()
     if not controller.connect():
@@ -141,19 +141,19 @@ def auto_dynamic_command(room: str, set: str, scene: str, yes: bool, auto_reload
     \b
     Examples:
       # View all auto-dynamic settings
-      uv run python hue_control.py auto-dynamic
+      uv run python hue_backup.py auto-dynamic
 
       # View auto-dynamic settings for Living room
-      uv run python hue_control.py auto-dynamic -r "Living"
+      uv run python hue_backup.py auto-dynamic -r "Living"
 
       # Disable auto-dynamic for all Living room scenes
-      uv run python hue_control.py auto-dynamic -r "Living" --set off
+      uv run python hue_backup.py auto-dynamic -r "Living" --set off
 
       # Enable auto-dynamic for a specific scene
-      uv run python hue_control.py auto-dynamic -s "Golden star" --set on
+      uv run python hue_backup.py auto-dynamic -s "Golden star" --set on
 
       # Disable auto-dynamic for all scenes (careful!)
-      uv run python hue_control.py auto-dynamic --set off
+      uv run python hue_backup.py auto-dynamic --set off
     """
     # Use cache for reading, but connect to bridge for writing
     cache_controller = get_cache_controller(auto_reload)

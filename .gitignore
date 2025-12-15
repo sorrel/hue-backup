@@ -44,7 +44,7 @@ wheels/
 cache/
 
 # User authentication config directory (contains bridge IP and API token)
-.hue_control/
+.hue_backup/
 
 # Prevent accidental commits if copied to project
 config.json

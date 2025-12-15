@@ -13,7 +13,7 @@ from typing import Optional
 
 # Configuration file paths
 CONFIG_FILE = Path(__file__).parent.parent / 'cache' / 'hue_data.json'
-USER_CONFIG_FILE = Path.home() / '.hue_control' / 'config.json'
+USER_CONFIG_FILE = Path.home() / '.hue_backup' / 'config.json'
 
 
 def is_op_available() -> bool:

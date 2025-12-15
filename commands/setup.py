@@ -1,5 +1,5 @@
 """
-Setup and help commands for Hue Control CLI.
+Setup and help commands for Hue Backup CLI.
 
 Contains custom Click group class for coloured help output and typo suggestions.
 """
@@ -253,7 +253,7 @@ def help_command():
 
     # Footer
     click.secho("📖 For detailed help on any command:", fg='cyan')
-    click.echo(f"  uv run python hue_control.py {click.style('<command> -h', fg='white', bold=True)}")
+    click.echo(f"  uv run python hue_backup.py {click.style('<command> -h', fg='white', bold=True)}")
     click.echo()
 
 
@@ -283,7 +283,7 @@ def configure_command(reconfigure):
 
     click.echo()
     click.secho("╔══════════════════════════════════════════════════════════╗", fg='cyan', bold=True)
-    click.secho("║          Hue Control - Bridge Configuration              ║", fg='cyan', bold=True)
+    click.secho("║          Hue Backup - Bridge Configuration               ║", fg='cyan', bold=True)
     click.secho("╚══════════════════════════════════════════════════════════╝", fg='cyan', bold=True)
     click.echo()
 
@@ -377,7 +377,7 @@ def configure_command(reconfigure):
     click.echo()
 
     # Step 3: Save credentials
-    config_path = Path.home() / '.hue_control' / 'config.json'
+    config_path = Path.home() / '.hue_backup' / 'config.json'
 
     if use_1password:
         # Show 1Password instructions
@@ -420,7 +420,7 @@ def setup_command():
 
     Configuration sources (priority order):
     1. 1Password (env: HUE_1PASSWORD_VAULT, HUE_1PASSWORD_ITEM)
-    2. Local config file (~/.hue_control/config.json)
+    2. Local config file (~/.hue_backup/config.json)
     3. Interactive setup (run 'configure' command)
     """
     from core.controller import HueController
@@ -455,7 +455,7 @@ def setup_command():
 
     # Check local config
     click.echo(click.style("2. Local Configuration", fg='cyan', bold=True))
-    config_path = Path.home() / '.hue_control' / 'config.json'
+    config_path = Path.home() / '.hue_backup' / 'config.json'
     local_creds = load_auth_from_user_config()
     if local_creds:
         click.echo(f"   Status:      {click.style('✓ Available', fg='green')}")
@@ -477,7 +477,7 @@ def setup_command():
         click.secho("⚠ No authentication configured", fg='yellow', bold=True)
         click.echo()
         click.echo("Run this command to set up authentication:")
-        click.echo(click.style("  uv run python hue_control.py configure", fg='green', bold=True))
+        click.echo(click.style("  uv run python hue_backup.py configure", fg='green', bold=True))
         click.echo()
         return
 
@@ -502,6 +502,6 @@ def setup_command():
         click.secho("✗ Connection failed", fg='red', bold=True)
         click.echo()
         click.echo("Try reconfiguring:")
-        click.echo(click.style("  uv run python hue_control.py configure --reconfigure", fg='green', bold=True))
+        click.echo(click.style("  uv run python hue_backup.py configure --reconfigure", fg='green', bold=True))
 
     click.echo()
