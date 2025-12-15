@@ -166,9 +166,9 @@ def help_command():
     """Display help and common commands."""
     # Header
     click.echo()
-    click.secho("╔══════════════════════════════════════════════════════════════════════════════╗", fg='cyan', bold=True)
-    click.secho("║                    Hue Lights Control - Quick Reference                      ║", fg='cyan', bold=True)
-    click.secho("╚══════════════════════════════════════════════════════════════════════════════╝", fg='cyan', bold=True)
+    click.secho("╔══════════════════════════════════════════════════════════════════════════════════╗", fg='cyan', bold=True)
+    click.secho("║                       Hue Backup Control - Quick Reference                       ║", fg='cyan', bold=True)
+    click.secho("╚══════════════════════════════════════════════════════════════════════════════════╝", fg='cyan', bold=True)
     click.echo()
 
     # Define commands with descriptions (plain text for alignment)
