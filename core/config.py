@@ -9,7 +9,6 @@ This module handles:
 import json
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 # Configuration file paths
 CONFIG_FILE = Path(__file__).parent.parent / 'cache' / 'hue_data.json'
@@ -27,7 +26,7 @@ def is_op_available() -> bool:
         return False
 
 
-def load_from_1password() -> Optional[str]:
+def load_from_1password() -> str | None:
     """Load API token from 1Password vault.
 
     DEPRECATED: Use core.auth.load_auth_from_1password() instead,

@@ -5,7 +5,6 @@ Includes power, brightness, colour, scene activation, and auto-dynamic control.
 """
 
 import click
-from typing import Optional
 from core.controller import HueController
 from models.utils import get_cache_controller, create_name_lookup
 
@@ -72,7 +71,7 @@ def brightness_command(light_name: str, brightness: int):
 @click.option('--hue', '-u', type=click.IntRange(0, 65535), help='Hue value (0-65535)')
 @click.option('--sat', '-s', type=click.IntRange(0, 254), help='Saturation (0-254)')
 @click.option('--ct', '-t', type=click.IntRange(153, 500), help='Colour temperature (153-500 mireds)')
-def colour_command(light_name: str, hue: Optional[int], sat: Optional[int], ct: Optional[int]):
+def colour_command(light_name: str, hue: int | None, sat: int | None, ct: int | None):
     """Set colour or temperature of a light.
 
     \b

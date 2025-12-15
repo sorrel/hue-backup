@@ -229,9 +229,7 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
             return
 
     # 3. Find switch behaviour instance
-    result = find_switch_behaviour(switch_name, cache_controller)
-
-    if result is None:
+    if (result := find_switch_behaviour(switch_name, cache_controller)) is None:
         # Check if no matches or multiple matches
         all_switches = get_all_switch_names(cache_controller)
 
@@ -261,7 +259,10 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
 
         return
 
-    behaviour, device_name, device = result
+    # Extract from SwitchBehaviour TypedDict
+    behaviour = result['behaviour']
+    device_name = result['device_name']
+    device = result['device']
     instance_id = behaviour['id']
 
     # 4. Build button configuration based on action type

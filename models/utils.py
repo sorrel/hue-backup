@@ -8,7 +8,6 @@ This module contains helper functions used across the application:
 """
 
 import click
-from typing import Optional, List, Dict
 
 
 def display_width(text: str) -> int:
@@ -77,7 +76,7 @@ def decode_button_event(event_code: int) -> str:
     return f"{button_name} ({event_type})"
 
 
-def create_name_lookup(resources: List[dict]) -> Dict[str, str]:
+def create_name_lookup(resources: list[dict]) -> dict[str, str]:
     """Create a lookup dict mapping resource IDs to names.
 
     Args:
@@ -115,7 +114,7 @@ def get_cache_controller(auto_reload: bool = True):
     return cache_ctrl
 
 
-def create_scene_reverse_lookup(scenes: List[dict]) -> Dict[str, str]:
+def create_scene_reverse_lookup(scenes: list[dict]) -> dict[str, str]:
     """Create a lookup dict mapping scene names (lowercase) to scene IDs.
 
     Args:
@@ -131,7 +130,7 @@ def create_scene_reverse_lookup(scenes: List[dict]) -> Dict[str, str]:
     }
 
 
-def find_similar_strings(target: str, candidates: List[str], limit: int = 5) -> List[str]:
+def find_similar_strings(target: str, candidates: list[str], limit: int = 5) -> list[str]:
     """Find similar strings using simple similarity scoring.
 
     Uses the same algorithm as command typo suggestions in setup.py.

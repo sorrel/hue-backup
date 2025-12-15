@@ -10,12 +10,13 @@ on Philips Hue switches, including:
 
 import click
 import copy
-from typing import List, Dict, Tuple, Optional
+
+from models.types import SwitchBehaviour
 
 
 # ===== Switch & Button Lookup =====
 
-def find_switch_behaviour(switch_name: str, controller) -> Optional[Tuple]:
+def find_switch_behaviour(switch_name: str, controller) -> SwitchBehaviour | None:
     """Find behaviour instance by switch/device name with fuzzy matching.
 
     Args:
@@ -23,7 +24,7 @@ def find_switch_behaviour(switch_name: str, controller) -> Optional[Tuple]:
         controller: HueController instance with cache
 
     Returns:
-        Tuple of (behaviour_instance, device_name, device) if found, None otherwise
+        SwitchBehaviour dict if found, None otherwise
     """
     devices = controller.get_devices()
     behaviours = controller.get_behaviour_instances()
@@ -55,13 +56,18 @@ def find_switch_behaviour(switch_name: str, controller) -> Optional[Tuple]:
     if len(matches) == 0:
         return None
     elif len(matches) == 1:
-        return matches[0]
+        behaviour, device_name, device = matches[0]
+        return SwitchBehaviour(
+            behaviour=behaviour,
+            device_name=device_name,
+            device=device
+        )
     else:
         # Multiple matches - return None and let caller handle error
         return None
 
 
-def get_all_switch_names(controller) -> List[str]:
+def get_all_switch_names(controller) -> list[str]:
     """Get all switch/dimmer device names for error messages.
 
     Args:
@@ -89,7 +95,7 @@ def get_all_switch_names(controller) -> List[str]:
 
 
 def find_button_rid_for_control_id(behaviour: dict, control_id: int,
-                                    button_lookup: Dict[str, dict]) -> Optional[str]:
+                                    button_lookup: dict[str, dict]) -> str | None:
     """Find button RID for a given control_id in new format behaviour.
 
     Args:
@@ -118,7 +124,7 @@ def find_button_rid_for_control_id(behaviour: dict, control_id: int,
 
 # ===== Scene Resolution =====
 
-def resolve_scene_names(scene_names: List[str], scenes: List[dict]) -> Optional[List[str]]:
+def resolve_scene_names(scene_names: list[str], scenes: list[dict]) -> list[str] | None:
     """Resolve scene names to scene IDs with fuzzy matching.
 
     Args:
@@ -149,8 +155,8 @@ def resolve_scene_names(scene_names: List[str], scenes: List[dict]) -> Optional[
     return scene_ids
 
 
-def fuzzy_match_scene(scene_name: str, scene_reverse_lookup: Dict[str, str],
-                      scenes: List[dict]) -> Optional[str]:
+def fuzzy_match_scene(scene_name: str, scene_reverse_lookup: dict[str, str],
+                      scenes: list[dict]) -> str | None:
     """Fuzzy match scene name to scene ID.
 
     Args:
@@ -192,8 +198,8 @@ def fuzzy_match_scene(scene_name: str, scene_reverse_lookup: Dict[str, str],
     return None  # No matches
 
 
-def find_similar_scenes(scene_name: str, scene_reverse_lookup: Dict[str, str],
-                       limit: int = 5) -> List[str]:
+def find_similar_scenes(scene_name: str, scene_reverse_lookup: dict[str, str],
+                       limit: int = 5) -> list[str]:
     """Find similar scene names for error suggestions.
 
     Args:
@@ -213,7 +219,7 @@ def find_similar_scenes(scene_name: str, scene_reverse_lookup: Dict[str, str],
 
 # ===== Configuration Builders =====
 
-def build_scene_cycle_config(scene_ids: List[str]) -> dict:
+def build_scene_cycle_config(scene_ids: list[str]) -> dict:
     """Build scene_cycle_extended configuration.
 
     CRITICAL: Slots must be a list of lists - each scene wrapped in array.
@@ -238,7 +244,7 @@ def build_scene_cycle_config(scene_ids: List[str]) -> dict:
     }
 
 
-def build_time_based_config(time_slots: List[Tuple[int, int, str]]) -> dict:
+def build_time_based_config(time_slots: list[tuple[int, int, str]]) -> dict:
     """Build time_based_extended configuration.
 
     CRITICAL: Slots is a list of objects with start_time and actions.
@@ -303,7 +309,7 @@ def build_dimming_config(direction: str) -> dict:
     }
 
 
-def build_long_press_config(action: str, scene_id: Optional[str] = None) -> dict:
+def build_long_press_config(action: str, scene_id: str | None = None) -> dict:
     """Build long press configuration.
 
     Args:
@@ -329,7 +335,7 @@ def build_long_press_config(action: str, scene_id: Optional[str] = None) -> dict
 
 # ===== Time Slot Parsing =====
 
-def parse_time_slot(slot_str: str) -> Tuple[int, int, str]:
+def parse_time_slot(slot_str: str) -> tuple[int, int, str]:
     """Parse time slot string in format HH:MM=SceneName.
 
     Args:
@@ -369,7 +375,7 @@ def parse_time_slot(slot_str: str) -> Tuple[int, int, str]:
 # ===== Button Configuration Update =====
 
 def update_button_configuration(behaviour: dict, button_number: int,
-                               new_config: dict, button_lookup: Dict[str, dict]) -> dict:
+                               new_config: dict, button_lookup: dict[str, dict]) -> dict:
     """Update button configuration in behaviour instance (handles both formats).
 
     Args:

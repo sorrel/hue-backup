@@ -9,11 +9,12 @@ import os
 import json
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Dict
 
 import click
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+from models.types import AuthCredentials, DiscoveredBridge
 
 # Disable SSL warnings for self-signed certificate
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -22,7 +23,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 USER_CONFIG_FILE = Path.home() / '.hue_backup' / 'config.json'
 
 
-def discover_bridges() -> List[Dict[str, str]]:
+def discover_bridges() -> list[DiscoveredBridge]:
     """Discover Hue bridges on the network using N-UPnP.
 
     Uses the Philips discovery service at https://discovery.meethue.com/
@@ -56,7 +57,7 @@ def discover_bridges() -> List[Dict[str, str]]:
         return []
 
 
-def select_bridge_interactive(bridges: List[Dict]) -> Optional[str]:
+def select_bridge_interactive(bridges: list[dict]) -> str | None:
     """Display interactive menu to select a bridge from discovered list.
 
     Args:
@@ -105,7 +106,7 @@ def select_bridge_interactive(bridges: List[Dict]) -> Optional[str]:
         return None
 
 
-def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli") -> Optional[str]:
+def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli") -> str | None:
     """Create new API user via link button authentication.
 
     Requires the user to press the physical link button on the Hue bridge
@@ -189,7 +190,7 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
     return None
 
 
-def load_auth_from_user_config() -> Optional[Dict[str, str]]:
+def load_auth_from_user_config() -> AuthCredentials | None:
     """Load bridge IP and API token from user config file.
 
     Returns:
@@ -264,7 +265,7 @@ def save_auth_to_user_config(bridge_ip: str, api_token: str) -> bool:
         return False
 
 
-def load_auth_from_1password() -> Optional[Dict[str, str]]:
+def load_auth_from_1password() -> AuthCredentials | None:
     """Load bridge IP and API token from 1Password vault.
 
     Reads vault and item names from environment variables:
@@ -329,7 +330,7 @@ def load_auth_from_1password() -> Optional[Dict[str, str]]:
         return None
 
 
-def get_auth_credentials(interactive: bool = True) -> Optional[Dict[str, str]]:
+def get_auth_credentials(interactive: bool = True) -> AuthCredentials | None:
     """Get authentication credentials using priority system.
 
     Priority order:

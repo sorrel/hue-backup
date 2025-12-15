@@ -5,7 +5,7 @@ validating cache freshness, and providing cache information.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import click
 
 from core.config import save_config, CONFIG_FILE
@@ -128,7 +128,7 @@ def ensure_fresh_cache(controller: 'HueController', max_age_hours: int = 24) -> 
     return True
 
 
-def get_cache_info(controller: 'HueController') -> Dict:
+def get_cache_info(controller: 'HueController') -> dict:
     """Get information about the current cache.
 
     Args:

@@ -2,7 +2,7 @@
 name = "hue-backup"
 version = "0.1.0"
 description = "CLI for backing up and restoring Philips Hue switch configurations and room settings"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 dependencies = [
     "click>=8.0.0",
     "requests>=2.28.0",

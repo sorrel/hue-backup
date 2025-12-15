@@ -5,10 +5,19 @@ Contains custom Click group class for coloured help output and typo suggestions.
 """
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 import click
 from core.config import CONFIG_FILE
+
+
+@dataclass(frozen=True)
+class CommandSection:
+    """Represents a section in the help command."""
+    name: str
+    icon: str
+    commands: list[tuple[str, str]]
 
 
 class ColouredGroup(click.Group):
@@ -171,63 +180,70 @@ def help_command():
     click.secho("╚══════════════════════════════════════════════════════════════════════════════════╝", fg='cyan', bold=True)
     click.echo()
 
-    # Define commands with descriptions (plain text for alignment)
-    commands = [
-        ("CACHE MANAGEMENT", [
-            ("reload", "Fetch fresh data from bridge and cache it"),
-            ("cache-info", "Show cache status and age"),
-            ("save-room <room>", "Save room config to timestamped file"),
-            ("diff-room <file>", "Compare saved room with current state"),
-            ("restore-room <file>", "Restore room config from saved backup"),
-        ]),
-        ("STATUS COMMANDS (use cache)", [
-            ("setup", "Show bridge configuration and test connection"),
-            ("status", "Bridge overview and statistics"),
-            ("switch-status", "View all switches with mappings (boxed)"),
-            ("switch-status -t", "View all switches with mappings (table)"),
-            ("button-data", "Show all wall control button programmes"),
-            ("button-data -r <room>", "Show wall controls filtered by room"),
-            ("scene-details", "Show scenes with light details"),
-            ("scene-details -r <room>", "Show scenes filtered by room"),
-            ("auto-dynamic", "View auto-dynamic status for all scenes"),
-            ("auto-dynamic -r <room>", "View auto-dynamic filtered by room"),
-            ("bridge-auto", "Show bridge automations (deprecated)"),
-            ("list", "List all lights"),
-            ("scenes", "List all scenes"),
-            ("switches", "List all switches"),
-            ("groups", "List all rooms/groups"),
-        ]),
-        ("DISCOVERY & MAPPING", [
-            ("discover", "Press buttons to see event codes"),
-            ("map <sensor> <btn> <scene>", "Create button → scene mapping"),
-            ("mappings", "View all configured mappings"),
-            ("program-button <switch> <btn>", "Programme button actions on switches (bridge-native)"),
-            ("switch-info <sensor_id>", "Detailed info for one switch (cached)"),
-        ]),
-        ("MONITORING & CONTROL", [
-            ("monitor", "Run continuously to activate mappings"),
-            ("activate-scene <scene_id>", "Activate a scene directly"),
-            ("auto-dynamic --set on/off", "Enable/disable auto-dynamic for scenes"),
-            ("auto-dynamic -s <name> --set", "Set auto-dynamic for specific scene"),
-            ("power <light> [--on/--off]", "Turn light on/off"),
-            ("brightness <light> <0-254>", "Set brightness"),
-            ("colour <light> [options]", "Set colour/temperature"),
-        ]),
+    # Define command sections with icons and descriptions
+    COMMAND_SECTIONS = [
+        CommandSection(
+            name="CACHE MANAGEMENT",
+            icon="💾",
+            commands=[
+                ("reload", "Fetch fresh data from bridge and cache it"),
+                ("cache-info", "Show cache status and age"),
+                ("save-room <room>", "Save room config to timestamped file"),
+                ("diff-room <file>", "Compare saved room with current state"),
+                ("restore-room <file>", "Restore room config from saved backup"),
+            ]
+        ),
+        CommandSection(
+            name="STATUS COMMANDS (use cache)",
+            icon="📋",
+            commands=[
+                ("setup", "Show bridge configuration and test connection"),
+                ("status", "Bridge overview and statistics"),
+                ("switch-status", "View all switches with mappings (boxed)"),
+                ("switch-status -t", "View all switches with mappings (table)"),
+                ("button-data", "Show all wall control button programmes"),
+                ("button-data -r <room>", "Show wall controls filtered by room"),
+                ("scene-details", "Show scenes with light details"),
+                ("scene-details -r <room>", "Show scenes filtered by room"),
+                ("auto-dynamic", "View auto-dynamic status for all scenes"),
+                ("auto-dynamic -r <room>", "View auto-dynamic filtered by room"),
+                ("bridge-auto", "Show bridge automations (deprecated)"),
+                ("list", "List all lights"),
+                ("scenes", "List all scenes"),
+                ("switches", "List all switches"),
+                ("groups", "List all rooms/groups"),
+            ]
+        ),
+        CommandSection(
+            name="DISCOVERY & MAPPING",
+            icon="🔍",
+            commands=[
+                ("discover", "Press buttons to see event codes"),
+                ("map <sensor> <btn> <scene>", "Create button → scene mapping"),
+                ("mappings", "View all configured mappings"),
+                ("program-button <switch> <btn>", "Programme button actions on switches (bridge-native)"),
+                ("switch-info <sensor_id>", "Detailed info for one switch (cached)"),
+            ]
+        ),
+        CommandSection(
+            name="MONITORING & CONTROL",
+            icon="🎯",
+            commands=[
+                ("monitor", "Run continuously to activate mappings"),
+                ("activate-scene <scene_id>", "Activate a scene directly"),
+                ("auto-dynamic --set on/off", "Enable/disable auto-dynamic for scenes"),
+                ("auto-dynamic -s <name> --set", "Set auto-dynamic for specific scene"),
+                ("power <light> [--on/--off]", "Turn light on/off"),
+                ("brightness <light> <0-254>", "Set brightness"),
+                ("colour <light> [options]", "Set colour/temperature"),
+            ]
+        ),
     ]
 
-    # Icons for sections
-    icons = {
-        "CACHE MANAGEMENT": "💾",
-        "STATUS COMMANDS (use cache)": "📋",
-        "DISCOVERY & MAPPING": "🔍",
-        "MONITORING & CONTROL": "🎯",
-    }
-
     # Print command sections
-    for section_name, items in commands:
-        icon = icons.get(section_name, "")
-        click.secho(f"{icon} {section_name}", fg='yellow', bold=True)
-        for cmd, desc in items:
+    for section in COMMAND_SECTIONS:
+        click.secho(f"{section.icon} {section.name}", fg='yellow', bold=True)
+        for cmd, desc in section.commands:
             # "  " (2 spaces) + cmd + padding to reach 42 chars + "  " + desc
             click.echo("  ", nl=False)
             click.secho(cmd, fg='green', nl=False)

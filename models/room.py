@@ -7,7 +7,7 @@ Room configurations include metadata, lights, scenes, and behaviour instances.
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import click
 
 if TYPE_CHECKING:
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 SAVED_ROOMS_DIR = Path(__file__).parent.parent / 'cache' / 'saved-rooms'
 
 
-def save_room_configuration(controller: 'HueController', room_name: str) -> Optional[str]:
+def save_room_configuration(controller: 'HueController', room_name: str) -> str | None:
     """Save complete configuration for a room to a timestamped file.
 
     Extracts from cache:
@@ -139,7 +139,7 @@ def save_room_configuration(controller: 'HueController', room_name: str) -> Opti
     return str(filepath)
 
 
-def diff_room_configuration(controller: 'HueController', saved_file_path: str, verbose: bool = False) -> Optional[Dict]:
+def diff_room_configuration(controller: 'HueController', saved_file_path: str, verbose: bool = False) -> dict | None:
     """Compare saved room configuration with current cache.
 
     Performs section-by-section comparison:
@@ -244,7 +244,7 @@ def diff_room_configuration(controller: 'HueController', saved_file_path: str, v
         return {'error': str(e)}
 
 
-def _diff_room_metadata(saved_room: dict, current_room: dict) -> Dict:
+def _diff_room_metadata(saved_room: dict, current_room: dict) -> dict:
     """Compare room metadata."""
     changes = []
 
@@ -271,7 +271,7 @@ def _diff_room_metadata(saved_room: dict, current_room: dict) -> Dict:
     }
 
 
-def _diff_lights(saved_lights: List[dict], current_lights: List[dict], verbose: bool = False) -> Dict:
+def _diff_lights(saved_lights: list[dict], current_lights: list[dict], verbose: bool = False) -> dict:
     """Compare lights - added, removed, and optionally state changes.
 
     Args:
@@ -336,7 +336,7 @@ def _diff_lights(saved_lights: List[dict], current_lights: List[dict], verbose: 
     }
 
 
-def _diff_scenes(saved_scenes: List[dict], current_scenes: List[dict]) -> Dict:
+def _diff_scenes(saved_scenes: list[dict], current_scenes: list[dict]) -> dict:
     """Compare scenes - added, removed, and setting changes."""
     saved_by_id = {s['id']: s for s in saved_scenes}
     current_by_id = {s['id']: s for s in current_scenes}
@@ -389,7 +389,7 @@ def _diff_scenes(saved_scenes: List[dict], current_scenes: List[dict]) -> Dict:
     }
 
 
-def _diff_button_configuration(saved_config: dict, current_config: dict, verbose: bool = False, scene_lookup: dict = None) -> List[str]:
+def _diff_button_configuration(saved_config: dict, current_config: dict, verbose: bool = False, scene_lookup: dict = None) -> list[str]:
     """Compare button configurations and return list of detailed changes.
 
     Handles both old format (button1/button2/button3/button4) and new format (buttons dict).
@@ -483,9 +483,9 @@ def _describe_button_change(saved_button: dict, current_button: dict, verbose: b
             for slot in slots:
                 # Each slot is a list with action items
                 for item in slot:
-                    recall = item.get('action', {}).get('recall', {})
-                    if recall.get('rtype') == 'scene':
-                        scene_ids.append(recall.get('rid', ''))
+                    if (recall := item.get('action', {}).get('recall', {})).get('rtype') == 'scene':
+                        if rid := recall.get('rid'):
+                            scene_ids.append(rid)
 
         return [sid for sid in scene_ids if sid]  # Filter empty strings
 
@@ -545,7 +545,7 @@ def _describe_button_change(saved_button: dict, current_button: dict, verbose: b
     return ""
 
 
-def _diff_behaviours(saved_behaviours: List[dict], current_behaviours: List[dict], verbose: bool = False, scene_lookup: dict = None) -> Dict:
+def _diff_behaviours(saved_behaviours: list[dict], current_behaviours: list[dict], verbose: bool = False, scene_lookup: dict = None) -> dict:
     """Compare behaviour instances - added, removed, and state changes.
 
     Args:
