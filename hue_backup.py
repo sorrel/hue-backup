@@ -5,6 +5,8 @@ Back up and restore Philips Hue switch configurations and room settings.
 """
 
 import click
+import os
+import sys
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
@@ -92,6 +94,233 @@ Run 'configure' for first-time setup or 'setup' to check configuration.
 Use 'help' for a quick reference of all commands.
 Use 'COMMAND -h' or 'COMMAND --help' for detailed help on a specific command."""
     pass
+
+
+@cli.command(name='install-completion')
+@click.option('--shell', type=click.Choice(['bash', 'zsh', 'fish']), default=None,
+              help='Shell type (auto-detected if not specified)')
+def install_completion_command(shell):
+    """Install shell completion for this tool.
+
+    Generates a completion script and adds it to your shell config.
+    Run this once after installation. Re-run to update when commands change.
+
+    \b
+    Examples:
+      uv run python hue_backup.py install-completion        # Auto-detect shell
+      uv run python hue_backup.py install-completion --shell zsh
+    """
+    # Auto-detect shell if not specified
+    if shell is None:
+        shell_env = os.environ.get('SHELL', '')
+        if 'zsh' in shell_env:
+            shell = 'zsh'
+        elif 'bash' in shell_env:
+            shell = 'bash'
+        elif 'fish' in shell_env:
+            shell = 'fish'
+        else:
+            click.echo("Could not detect shell type. Please specify with --shell option.")
+            return
+
+    script_path = os.path.abspath(__file__)
+    script_dir = os.path.dirname(script_path)
+
+    # Generate static completion script
+    if shell == 'zsh':
+        config_file = os.path.expanduser('~/.zshrc')
+        completion_dir = os.path.expanduser('~/.hue_backup_completion')
+        completion_file = os.path.join(completion_dir, '_hue_backup')
+
+        # Create completion directory
+        os.makedirs(completion_dir, exist_ok=True)
+
+        # Generate zsh completion script that works for both alias and full command
+        completion_script = f'''#compdef hue
+
+_hue_commands() {{
+    local -a commands
+    commands=(
+        'help:Display help and common commands'
+        'setup:Show current bridge configuration and test connection'
+        'configure:Interactive bridge configuration and authentication setup'
+        'reload:Reload and cache all data from the Hue Bridge'
+        'cache-info:Show cache status and information'
+        'save-room:Save complete configuration for a room'
+        'diff-room:Compare saved room configuration with current state'
+        'restore-room:Restore room configuration from a saved backup'
+        'scene-details:Show detailed scene information from cache'
+        'status:Get overall bridge status and configuration summary'
+        'list:List all lights and their current state'
+        'groups:List all groups/rooms'
+        'scenes:List all available scenes'
+        'switches:List all switches and sensors'
+        'debug-buttons:Debug - show raw button configuration data'
+        'button-data:Show programmed wall controls (dimmers and dials)'
+        'bridge-auto:Show bridge-configured button automations'
+        'switch-status:Display switch status with CLI mappings'
+        'switch-info:Get detailed information about switches'
+        'power:Turn a light ON or OFF'
+        'brightness:Set brightness of a light'
+        'colour:Set colour or temperature of a light'
+        'activate-scene:Activate a scene by its ID'
+        'auto-dynamic:View or modify auto-dynamic settings for scenes'
+        'map:Map a button event to a scene'
+        'mappings:List all current button-to-scene mappings'
+        'discover:Discover button events by pressing buttons'
+        'monitor:Monitor switches and activate mapped scenes'
+        'program-button:Programme a button on a Hue switch'
+        'install-completion:Install shell completion'
+        'show-completion:Show completion script'
+    )
+
+    _describe 'command' commands
+}}
+
+_hue() {{
+    _hue_commands
+}}
+
+# Completion only for 'hue' command
+compdef _hue hue
+'''
+
+        # Write completion file
+        with open(completion_file, 'w') as f:
+            f.write(completion_script)
+
+        # Source lines to add to zshrc (function + completion)
+        # Use a function instead of alias so we can cd first
+        alias_line = f'hue() {{ (builtin cd {script_dir} && uv run python {script_path} "$@"); }}'
+        source_line = f'fpath=({completion_dir} $fpath) && autoload -Uz compinit && compinit'
+
+    elif shell == 'bash':
+        config_file = os.path.expanduser('~/.bashrc')
+        completion_dir = os.path.expanduser('~/.hue_backup_completion')
+        completion_file = os.path.join(completion_dir, 'hue_backup.bash')
+
+        # Create completion directory
+        os.makedirs(completion_dir, exist_ok=True)
+
+        # Generate bash completion script
+        completion_script = '''_hue_completion() {
+    local cur prev commands
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    commands="help setup configure reload cache-info save-room diff-room restore-room scene-details status list groups scenes switches debug-buttons button-data bridge-auto switch-status switch-info power brightness colour activate-scene auto-dynamic map mappings discover monitor program-button install-completion show-completion"
+
+    if [[ ${COMP_CWORD} == 1 ]]; then
+        COMPREPLY=( $(compgen -W "${commands}" -- ${cur}) )
+    fi
+}
+complete -F _hue_completion hue
+'''
+
+        # Write completion file
+        with open(completion_file, 'w') as f:
+            f.write(completion_script)
+
+        # Use a function instead of alias so we can cd first
+        alias_line = f'hue() {{ (builtin cd {script_dir} && uv run python {script_path} "$@"); }}'
+        source_line = f'source {completion_file}'
+
+    else:
+        click.echo(f"Unsupported shell: {shell}")
+        return
+
+    # Check if already installed
+    try:
+        with open(config_file, 'r') as f:
+            content = f.read()
+            if 'hue_backup_completion' in content or completion_dir in content:
+                click.secho(f"✓ Completion already installed in {config_file}", fg='green')
+                click.echo(f"\nCompletion file: {completion_file}")
+                click.echo(f"\nReload your shell with: source {config_file}")
+                return
+    except FileNotFoundError:
+        pass
+
+    # Add alias and completion to config file
+    try:
+        with open(config_file, 'a') as f:
+            f.write(f'\n# Hue Backup alias and tab completion\n')
+            f.write(f'{alias_line}\n')
+            f.write(f'{source_line}\n')
+
+        click.secho(f"✓ Completion installed successfully!", fg='green', bold=True)
+        click.echo(f"\nFunction created: 'hue' (runs from project directory)")
+        click.echo(f"Completion file: {completion_file}")
+        click.echo(f"Configuration added to: {config_file}")
+        click.echo(f"\nReload your shell with: source {config_file}")
+        click.echo(f"\nNow you can use: hue <TAB>")
+    except Exception as e:
+        click.secho(f"Error installing completion: {e}", fg='red')
+
+
+@cli.command(name='show-completion')
+@click.option('--shell', type=click.Choice(['bash', 'zsh', 'fish']), default=None,
+              help='Shell type (auto-detected if not specified)')
+def show_completion_command(shell):
+    """Show the completion script for manual installation.
+
+    Displays the completion script that would be generated.
+    Useful for manual installation or troubleshooting.
+    """
+    # Auto-detect shell if not specified
+    if shell is None:
+        shell_env = os.environ.get('SHELL', '')
+        if 'zsh' in shell_env:
+            shell = 'zsh'
+        elif 'bash' in shell_env:
+            shell = 'bash'
+        elif 'fish' in shell_env:
+            shell = 'fish'
+        else:
+            click.echo("Could not detect shell type. Please specify with --shell option.")
+            return
+
+    script_path = os.path.abspath(__file__)
+    script_dir = os.path.dirname(script_path)
+    completion_dir = os.path.expanduser('~/.hue_backup_completion')
+
+    if shell == 'zsh':
+        config_file = '~/.zshrc'
+        completion_file = os.path.join(completion_dir, '_hue_backup')
+        alias_line = f'hue() {{ (builtin cd {script_dir} && uv run python {script_path} "$@"); }}'
+        source_line = f'fpath=({completion_dir} $fpath) && autoload -Uz compinit && compinit'
+
+        click.secho(f"\n1. Completion file location:", fg='cyan', bold=True)
+        click.echo(f"   {completion_file}")
+        click.echo()
+        click.secho(f"2. Add these lines to {config_file}:", fg='cyan', bold=True)
+        click.echo(f"   {alias_line}")
+        click.echo(f"   {source_line}")
+        click.echo()
+        click.secho(f"3. Then use:", fg='cyan', bold=True)
+        click.echo(f"   hue <TAB>")
+
+    elif shell == 'bash':
+        config_file = '~/.bashrc'
+        completion_file = os.path.join(completion_dir, 'hue_backup.bash')
+        alias_line = f'hue() {{ (builtin cd {script_dir} && uv run python {script_path} "$@"); }}'
+        source_line = f'source {completion_file}'
+
+        click.secho(f"\n1. Completion file location:", fg='cyan', bold=True)
+        click.echo(f"   {completion_file}")
+        click.echo()
+        click.secho(f"2. Add these lines to {config_file}:", fg='cyan', bold=True)
+        click.echo(f"   {alias_line}")
+        click.echo(f"   {source_line}")
+        click.echo()
+        click.secho(f"3. Then use:", fg='cyan', bold=True)
+        click.echo(f"   hue <TAB>")
+
+    else:
+        click.echo(f"Unsupported shell: {shell}")
+        return
+
+    click.echo()
 
 
 # Register setup and help commands
