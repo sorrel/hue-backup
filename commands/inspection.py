@@ -208,15 +208,47 @@ def status_command(auto_reload: bool):
         # Count switch devices (devices with button services)
         switch_devices = [d for d in devices if any(s.get('rtype') == 'button' for s in d.get('services', []))]
 
+        # Count smart plugs
+        plug_devices = [
+            d for d in devices
+            if d.get('product_data', {}).get('product_name') == 'Hue smart plug'
+        ]
+
+        # Count light devices (bulbs, strips, etc.)
+        light_devices = [
+            d for d in devices
+            if d.get('product_data', {}).get('product_name', '').lower() not in ['hue smart plug', 'unknown']
+            and any(keyword in d.get('product_data', {}).get('product_name', '').lower()
+                   for keyword in ['bulb', 'lamp', 'spot', 'strip', 'candle', 'filament', 'color', 'colour', 'white', 'ambiance', 'festavia', 'light'])
+        ]
+
+        # Count other devices
+        other_devices = [
+            d for d in devices
+            if not any(keyword in d.get('product_data', {}).get('product_name', '').lower()
+                      for keyword in [
+                          'switch', 'dimmer', 'dial', 'smart plug',
+                          'bulb', 'lamp', 'spot', 'strip', 'candle', 'filament',
+                          'color', 'colour', 'white', 'ambiance', 'festavia', 'light'
+                      ])
+            and d.get('product_data', {}).get('product_name', '').lower() != 'unknown'
+        ]
+
         lights_count = len(lights) if lights else 0
         rooms_count = len(rooms) if rooms else 0
         scenes_count = len(scenes) if scenes else 0
         switches_count = len(switch_devices)
+        plugs_count = len(plug_devices)
+        light_devices_count = len(light_devices)
+        other_count = len(other_devices)
 
-        click.echo(f"{lights_count} lights")
+        click.echo(f"{light_devices_count} light devices")
+        click.echo(f"{plugs_count} smart plugs")
+        click.echo(f"{switches_count} switches")
+        click.echo(f"{other_count} other devices")
         click.echo(f"{rooms_count} rooms")
         click.echo(f"{scenes_count} scenes")
-        click.echo(f"{switches_count} switches/buttons")
+        click.echo(f"{lights_count} light resources")
         click.echo()
 
     except Exception as e:
@@ -1739,9 +1771,9 @@ def other_command(room: str, auto_reload: bool):
                 # Determine emoji based on device type
                 product_name_lower = device['product_name'].lower()
                 if 'doorbell' in product_name_lower or 'camera' in product_name_lower:
-                    type_emoji = '🔔'
+                    type_emoji = '📷'
                 elif 'chime' in product_name_lower or 'ding' in product_name_lower:
-                    type_emoji = '🔊'
+                    type_emoji = '🔔'
                 elif 'bridge' in product_name_lower:
                     type_emoji = '🌉'
                 else:
@@ -1990,9 +2022,9 @@ def all_devices_command(room: str, auto_reload: bool):
 
             # Determine emoji based on device type
             if 'doorbell' in product_name or 'camera' in product_name:
-                type_emoji = '🔔'
+                type_emoji = '📷'
             elif 'chime' in product_name or 'ding' in product_name:
-                type_emoji = '🔊'
+                type_emoji = '🔔'
             elif 'bridge' in product_name:
                 type_emoji = '🌉'
             else:
