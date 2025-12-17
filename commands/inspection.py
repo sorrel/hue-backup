@@ -21,6 +21,48 @@ BUTTON_LABELS = {
     35: 'DIAL PRESS',
 }
 
+# Switch type emojis
+SWITCH_EMOJIS = {
+    'tap_dial': '🔘',   # Tap dial switch (rotary)
+    'dimmer': '🎚️',    # Dimmer switch (rectangular, 4 buttons)
+    'unknown': '🎛️',   # Unknown/generic switch
+}
+
+
+def get_switch_emoji(device_id: str, devices: list[dict]) -> str:
+    """Get emoji for switch type based on device information.
+
+    Args:
+        device_id: Device ID to look up
+        devices: List of device dictionaries from cache
+
+    Returns:
+        Emoji string for the switch type
+    """
+    if not device_id or not devices:
+        return SWITCH_EMOJIS['unknown']
+
+    # Find device by ID
+    device = next((d for d in devices if d.get('id') == device_id), None)
+    if not device:
+        return SWITCH_EMOJIS['unknown']
+
+    # Check product name or model ID
+    product_data = device.get('product_data', {})
+    product_name = product_data.get('product_name', '').lower()
+    model_id = product_data.get('model_id', '')
+
+    # Tap dial switch
+    if 'tap dial' in product_name or model_id == 'RDM002':
+        return SWITCH_EMOJIS['tap_dial']
+
+    # Dimmer switch
+    if 'dimmer' in product_name or model_id in ['RWL021', 'RWL022']:
+        return SWITCH_EMOJIS['dimmer']
+
+    # Unknown/generic
+    return SWITCH_EMOJIS['unknown']
+
 
 def format_timestamp(iso_timestamp: str) -> str:
     """Format ISO 8601 timestamp to UK format: DD/MM HH:MM"""
@@ -757,6 +799,7 @@ def switch_status_command(table: bool, room: str, auto_reload: bool):
     try:
         sensors = cache_controller.get_sensors()
         scenes = cache_controller.get_scenes()
+        devices = cache_controller.get_devices()
 
         # Filter to only switches/buttons
         switches = {
@@ -799,7 +842,13 @@ def switch_status_command(table: bool, room: str, auto_reload: bool):
             # Prepare data for table
             rows = []
             for sensor_id, sensor_data in switches.items():
+                # Get switch emoji based on device type
+                device_id = sensor_data.get('device_id', '')
+                emoji = get_switch_emoji(device_id, devices)
+
                 name = sensor_data.get('name', 'Unnamed')
+                name_with_emoji = f"{emoji} {name}"
+
                 state = sensor_data.get('state', {})
                 config = sensor_data.get('config', {})
 
@@ -835,15 +884,15 @@ def switch_status_command(table: bool, room: str, auto_reload: bool):
                 mappings_str = ", ".join(switch_mappings) if switch_mappings else ""
 
                 rows.append({
-                    'name': name,
+                    'name': name_with_emoji,
                     'id': sensor_id,
                     'battery': battery,
                     'last_event': str(last_event),
                     'mappings': mappings_str
                 })
 
-            # Calculate column widths
-            col_name = max(len(r['name']) for r in rows)
+            # Calculate column widths using display_width (accounts for emojis)
+            col_name = max(display_width(r['name']) for r in rows)
             col_id = max(len(r['id']) for r in rows)
             col_battery = max(len(r['battery']) for r in rows)
             col_event = max(len(r['last_event']) for r in rows)
@@ -879,8 +928,9 @@ def switch_status_command(table: bool, room: str, auto_reload: bool):
             # Print rows
             for row in rows:
                 # Style text only, then add plain spaces for padding to avoid ANSI alignment issues
+                # Use display_width for name (accounts for emoji)
                 row_str = (
-                    f"{click.style(row['name'], fg='green')}{' ' * (col_name - len(row['name']))} │ "
+                    f"{click.style(row['name'], fg='green')}{' ' * (col_name - display_width(row['name']))} │ "
                     f"{click.style(row['id'], fg='white')}{' ' * (col_id - len(row['id']))} │ "
                     f"{click.style(row['battery'], fg='yellow')}{' ' * (col_battery - len(row['battery']))} │ "
                     f"{click.style(row['last_event'], fg='white')}{' ' * (col_event - len(row['last_event']))} │ "
@@ -898,13 +948,17 @@ def switch_status_command(table: bool, room: str, auto_reload: bool):
             click.echo()
 
             for sensor_id, sensor_data in switches.items():
+                # Get switch emoji based on device type
+                device_id = sensor_data.get('device_id', '')
+                emoji = get_switch_emoji(device_id, devices)
+
                 name = sensor_data.get('name', 'Unnamed')
                 state = sensor_data.get('state', {})
                 config = sensor_data.get('config', {})
 
                 # Build box content
                 box_lines = []
-                box_lines.append(f"  {name}  ")
+                box_lines.append(f"  {emoji} {name}  ")
                 box_lines.append(f"  ID: {sensor_id}  ")
 
                 # Battery if available
@@ -1109,3 +1163,192 @@ def switch_info_command(sensor_id: str, room: str, auto_reload: bool):
 
     except Exception as e:
         click.echo(f"Error getting switch info: {e}")
+
+
+@click.command()
+@click.option('--room', '-r', help='Filter plugs by room name')
+@click.option('--auto-reload/--no-auto-reload', default=True, help='Auto-reload stale cache (default: yes)')
+def plugs_command(room: str, auto_reload: bool):
+    """Display smart plug status (on/off state by room).
+
+    Shows all Hue smart plugs with their on/off state, organised by room.
+    Uses cached data, automatically reloading if the cache is over 24 hours old.
+
+    \b
+    Examples:
+      uv run python hue_backup.py plugs              # All plugs
+      uv run python hue_backup.py plugs -r lounge    # Only lounge plugs
+    """
+    cache_controller = get_cache_controller(auto_reload)
+    if not cache_controller:
+        return
+
+    try:
+        # Get all devices and lights
+        devices = cache_controller.get_devices()
+        lights = cache_controller.get_lights()
+        rooms_list = cache_controller.get_rooms()
+
+        # Create room lookup
+        room_lookup = create_name_lookup(rooms_list)
+
+        # Find all smart plug devices
+        plug_devices = [
+            d for d in devices
+            if d.get('product_data', {}).get('product_name') == 'Hue smart plug'
+        ]
+
+        if not plug_devices:
+            click.echo("No smart plugs found.")
+            return
+
+        # Organise plugs by room
+        plugs_by_room = {}
+
+        for device in plug_devices:
+            device_id = device.get('id')
+            device_name = device.get('metadata', {}).get('name', 'Unnamed')
+
+            # Get product information
+            product_data = device.get('product_data', {})
+            model_id = product_data.get('model_id', 'Unknown')
+            manufacturer = product_data.get('manufacturer_name', 'Unknown')
+            product_name = product_data.get('product_name', 'Unknown')
+
+            # Find the corresponding light resource for this device
+            light = next((l for l in lights if l.get('owner', {}).get('rid') == device_id), None)
+            if not light:
+                continue
+
+            # Get on/off state
+            is_on = light.get('on', {}).get('on', False)
+
+            # Find room assignment - rooms contain device IDs in children, not light IDs
+            room_name = 'Unassigned'
+            for room_data in rooms_list:
+                children = room_data.get('children', [])
+                # Check if device_id is in the room's children
+                if any(c.get('rid') == device_id for c in children):
+                    room_name = room_data.get('metadata', {}).get('name', 'Unknown')
+                    break
+
+            # Apply room filter if specified
+            if room and room.lower() not in room_name.lower():
+                continue
+
+            # Add to room group
+            if room_name not in plugs_by_room:
+                plugs_by_room[room_name] = []
+
+            plugs_by_room[room_name].append({
+                'name': device_name,
+                'on': is_on,
+                'model_id': model_id,
+                'manufacturer': manufacturer,
+                'product_name': product_name
+            })
+
+        if not plugs_by_room:
+            if room:
+                click.echo(f"No smart plugs found matching room '{room}'.")
+            else:
+                click.echo("No smart plugs found.")
+            return
+
+        # Display plugs in table format
+        click.echo()
+        click.secho("=== Smart Plugs ===", fg='cyan', bold=True)
+        click.echo()
+
+        # Prepare table rows
+        rows = []
+        for room_name in sorted(plugs_by_room.keys()):
+            plugs = plugs_by_room[room_name]
+            for plug in sorted(plugs, key=lambda p: p['name']):
+                rows.append({
+                    'room': room_name,
+                    'name': plug['name'],
+                    'status': 'ON' if plug['on'] else 'OFF',
+                    'on': plug['on'],
+                    'model': plug['model_id']
+                })
+
+        # Calculate column widths
+        col_room = max(len(r['room']) for r in rows)
+        col_name = max(len(r['name']) for r in rows)
+        # Status column: "⚫ OFF" = emoji (2) + space (1) + "OFF" (3) = 6 display cols
+        col_status = 6
+        col_model = max(len(r['model']) for r in rows)
+
+        # Ensure minimum widths for headers
+        col_room = max(col_room, len("Room"))
+        col_name = max(col_name, len("Plug Name"))
+        col_model = max(col_model, len("Model"))
+
+        # Print header
+        header = (
+            f"{'Room'.ljust(col_room)} │ "
+            f"{'Plug Name'.ljust(col_name)} │ "
+            f"{'Status'.ljust(col_status)} │ "
+            f"{'Model'.ljust(col_model)}"
+        )
+        click.secho(header, fg='cyan', bold=True)
+
+        # Print separator
+        separator = (
+            "─" * col_room + "─┼─" +
+            "─" * col_name + "─┼─" +
+            "─" * col_status + "─┼─" +
+            "─" * col_model
+        )
+        click.secho(separator, fg='cyan')
+
+        # Print rows
+        for row in rows:
+            # Status with icon and colour
+            if row['on']:
+                status_icon = "🔌"
+                status_text = click.style("ON", fg='green', bold=True)
+                status_display_width = 2 + 1 + 2  # emoji (2) + space (1) + "ON" (2)
+            else:
+                status_icon = "⚫"
+                status_text = click.style("OFF", fg='red')
+                status_display_width = 2 + 1 + 3  # emoji (2) + space (1) + "OFF" (3)
+
+            status_display = status_icon + " " + status_text
+
+            row_str = (
+                f"{click.style(row['room'], fg='blue')}{' ' * (col_room - len(row['room']))} │ "
+                f"{click.style(row['name'], fg='white')}{' ' * (col_name - len(row['name']))} │ "
+                f"{status_display}{' ' * (col_status - status_display_width)} │ "
+                f"{click.style(row['model'], fg='yellow')}{' ' * (col_model - len(row['model']))}"
+            )
+            click.echo(row_str)
+
+        click.echo()
+
+        # Summary
+        total_plugs = sum(len(plugs) for plugs in plugs_by_room.values())
+        total_on = sum(1 for plugs in plugs_by_room.values() for p in plugs if p['on'])
+        total_off = total_plugs - total_on
+
+        # Get unique models
+        all_plugs = [p for plugs in plugs_by_room.values() for p in plugs]
+        unique_models = {}
+        for plug in all_plugs:
+            model = plug['model_id']
+            if model not in unique_models:
+                unique_models[model] = 0
+            unique_models[model] += 1
+
+        click.secho("Summary:", fg='cyan', bold=True)
+        click.echo(f"  Total plugs: {total_plugs}")
+        click.echo(f"  {click.style('●', fg='green')} ON: {total_on}  {click.style('●', fg='red')} OFF: {total_off}")
+        click.echo()
+        click.secho("Models:", fg='cyan', bold=True)
+        for model, count in sorted(unique_models.items()):
+            click.echo(f"  {model}: {count} plug{'s' if count != 1 else ''}")
+        click.echo()
+
+    except Exception as e:
+        click.echo(f"Error getting plug status: {e}")
