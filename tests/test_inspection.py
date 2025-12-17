@@ -8,7 +8,7 @@ direct API calls, and correctly handle v2 API list format (not dict).
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from click.testing import CliRunner
-from commands.inspection import list_lights_command, groups_command, status_command, switch_info_command
+from commands.inspection import lights_command, groups_command, status_command, switch_info_command
 
 
 class TestListCommand:
@@ -26,7 +26,7 @@ class TestListCommand:
         mock_get_cache.return_value = mock_controller
 
         runner = CliRunner()
-        result = runner.invoke(list_lights_command, ['--no-auto-reload'])
+        result = runner.invoke(lights_command, ['--no-auto-reload'])
 
         mock_get_cache.assert_called_once_with(False)
         mock_controller.get_lights.assert_called_once()
@@ -41,24 +41,41 @@ class TestListCommand:
         """
         mock_controller = Mock()
         # v2 API returns a list, not a dict
+        mock_controller.get_devices.return_value = [
+            {
+                'id': 'device1',
+                'metadata': {'name': 'Test Light'},
+                'product_data': {
+                    'product_name': 'Hue white and colour ambiance bulb',
+                    'model_id': 'LCA001'
+                }
+            },
+            {
+                'id': 'device2',
+                'metadata': {'name': 'Test Light 2'},
+                'product_data': {
+                    'product_name': 'Hue white bulb',
+                    'model_id': 'LWB010'
+                }
+            }
+        ]
         mock_controller.get_lights.return_value = [
             {
                 'id': 'light1',
-                'metadata': {'name': 'Test Light'},
-                'on': {'on': True},
-                'dimming': {'brightness': 75.0}
+                'owner': {'rid': 'device1'},
+                'on': {'on': True}
             },
             {
                 'id': 'light2',
-                'metadata': {'name': 'Test Light 2'},
-                'on': {'on': False},
-                'dimming': {'brightness': 0}
+                'owner': {'rid': 'device2'},
+                'on': {'on': False}
             }
         ]
+        mock_controller.get_rooms.return_value = []
         mock_get_cache.return_value = mock_controller
 
         runner = CliRunner()
-        result = runner.invoke(list_lights_command, ['--no-auto-reload'])
+        result = runner.invoke(lights_command, ['--no-auto-reload'])
 
         assert result.exit_code == 0
         assert 'Test Light' in result.output
@@ -128,7 +145,15 @@ class TestStatusCommand:
         mock_controller.get_lights.return_value = [{'id': 'light1'}]
         mock_controller.get_rooms.return_value = [{'id': 'room1'}]
         mock_controller.get_scenes.return_value = [{'id': 'scene1'}]
-        mock_controller.get_devices.return_value = []
+        mock_controller.get_devices.return_value = [
+            {
+                'id': 'device1',
+                'product_data': {
+                    'product_name': 'Hue white bulb'
+                },
+                'services': []
+            }
+        ]
         mock_controller.button_mappings = {}
         mock_get_cache.return_value = mock_controller
 
@@ -137,7 +162,8 @@ class TestStatusCommand:
 
         mock_get_cache.assert_called_once_with(False)
         assert result.exit_code == 0
-        assert '1 lights' in result.output
+        assert '1 light devices' in result.output
+        assert '1 light resources' in result.output
         assert '1 rooms' in result.output
         assert '1 scenes' in result.output
 
