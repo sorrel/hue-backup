@@ -55,7 +55,8 @@ from commands.inspection import (
     bridge_auto_command,
     switch_status_command,
     switch_info_command,
-    plugs_command
+    plugs_command,
+    lights_command
 )
 from commands.control import (
     power_command,
@@ -167,6 +168,7 @@ _hue_commands() {{
         'switch-status:Display switch status with CLI mappings'
         'switch-info:Get detailed information about switches'
         'plugs:Display smart plug status (on/off by room)'
+        'lights:Display light bulbs and fixtures (on/off by room)'
         'power:Turn a light ON or OFF'
         'brightness:Set brightness of a light'
         'colour:Set colour or temperature of a light'
@@ -215,7 +217,7 @@ compdef _hue hue
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="help setup configure reload cache-info save-room diff-room restore-room scene-details status list groups scenes switches debug-buttons button-data bridge-auto switch-status switch-info plugs power brightness colour activate-scene auto-dynamic map mappings discover monitor program-button install-completion show-completion"
+    commands="help setup configure reload cache-info save-room diff-room restore-room scene-details status list groups scenes switches debug-buttons button-data bridge-auto switch-status switch-info plugs lights power brightness colour activate-scene auto-dynamic map mappings discover monitor program-button install-completion show-completion"
 
     if [[ ${COMP_CWORD} == 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- ${cur}) )
@@ -357,6 +359,7 @@ cli.add_command(bridge_auto_command, name='bridge-auto')
 cli.add_command(switch_status_command, name='switch-status')
 cli.add_command(switch_info_command, name='switch-info')
 cli.add_command(plugs_command, name='plugs')
+cli.add_command(lights_command, name='lights')
 
 # Register control commands
 cli.add_command(power_command, name='power')

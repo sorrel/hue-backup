@@ -1352,3 +1352,198 @@ def plugs_command(room: str, auto_reload: bool):
 
     except Exception as e:
         click.echo(f"Error getting plug status: {e}")
+
+
+@click.command()
+@click.option('--room', '-r', help='Filter lights by room name')
+@click.option('--auto-reload/--no-auto-reload', default=True, help='Auto-reload stale cache (default: yes)')
+def lights_command(room: str, auto_reload: bool):
+    """Display light bulbs and fixtures with status and model info.
+
+    Shows all Hue lights (bulbs, spots, candles, strips, etc.) with their
+    on/off state and model information, organised by room.
+    Excludes smart plugs (use 'plugs' command for those).
+
+    Uses cached data, automatically reloading if the cache is over 24 hours old.
+
+    \b
+    Examples:
+      uv run python hue_backup.py lights              # All lights
+      uv run python hue_backup.py lights -r lounge    # Only lounge lights
+    """
+    cache_controller = get_cache_controller(auto_reload)
+    if not cache_controller:
+        return
+
+    try:
+        # Get all devices and lights
+        devices = cache_controller.get_devices()
+        lights = cache_controller.get_lights()
+        rooms_list = cache_controller.get_rooms()
+
+        # Filter to actual light devices (not smart plugs)
+        light_devices = [
+            d for d in devices
+            if d.get('product_data', {}).get('product_name', '').lower() not in ['hue smart plug', 'unknown']
+            and any(keyword in d.get('product_data', {}).get('product_name', '').lower()
+                   for keyword in ['bulb', 'lamp', 'spot', 'strip', 'candle', 'filament', 'color', 'white', 'ambiance'])
+        ]
+
+        if not light_devices:
+            click.echo("No lights found.")
+            return
+
+        # Organise lights by room
+        lights_by_room = {}
+
+        for device in light_devices:
+            device_id = device.get('id')
+            device_name = device.get('metadata', {}).get('name', 'Unnamed')
+
+            # Get product information
+            product_data = device.get('product_data', {})
+            model_id = product_data.get('model_id', 'Unknown')
+            product_name = product_data.get('product_name', 'Unknown')
+
+            # Find the corresponding light resource for this device
+            light = next((l for l in lights if l.get('owner', {}).get('rid') == device_id), None)
+            if not light:
+                continue
+
+            # Get on/off state
+            is_on = light.get('on', {}).get('on', False)
+
+            # Find room assignment - rooms contain device IDs in children
+            room_name = 'Unassigned'
+            for room_data in rooms_list:
+                children = room_data.get('children', [])
+                # Check if device_id is in the room's children
+                if any(c.get('rid') == device_id for c in children):
+                    room_name = room_data.get('metadata', {}).get('name', 'Unknown')
+                    break
+
+            # Apply room filter if specified
+            if room and room.lower() not in room_name.lower():
+                continue
+
+            # Add to room group
+            if room_name not in lights_by_room:
+                lights_by_room[room_name] = []
+
+            lights_by_room[room_name].append({
+                'name': device_name,
+                'on': is_on,
+                'model_id': model_id,
+                'product_name': product_name
+            })
+
+        if not lights_by_room:
+            if room:
+                click.echo(f"No lights found matching room '{room}'.")
+            else:
+                click.echo("No lights found.")
+            return
+
+        # Display lights in table format
+        click.echo()
+        click.secho("=== Lights ===", fg='cyan', bold=True)
+        click.echo()
+
+        # Prepare table rows
+        rows = []
+        for room_name in sorted(lights_by_room.keys()):
+            room_lights = lights_by_room[room_name]
+            for light in sorted(room_lights, key=lambda l: l['name']):
+                rows.append({
+                    'room': room_name,
+                    'name': light['name'],
+                    'status': 'ON' if light['on'] else 'OFF',
+                    'on': light['on'],
+                    'model': light['model_id'],
+                    'type': light['product_name']
+                })
+
+        # Calculate column widths
+        col_room = max(len(r['room']) for r in rows)
+        col_name = max(len(r['name']) for r in rows)
+        # Status column: "💡 ON" = emoji (2) + space (1) + "ON" (2) = 5 display cols
+        col_status = 6
+        col_model = max(len(r['model']) for r in rows)
+        col_type = max(len(r['type']) for r in rows)
+
+        # Ensure minimum widths for headers
+        col_room = max(col_room, len("Room"))
+        col_name = max(col_name, len("Light Name"))
+        col_model = max(col_model, len("Model"))
+        col_type = max(col_type, len("Type"))
+
+        # Print header
+        header = (
+            f"{'Room'.ljust(col_room)} │ "
+            f"{'Light Name'.ljust(col_name)} │ "
+            f"{'Status'.ljust(col_status)} │ "
+            f"{'Model'.ljust(col_model)} │ "
+            f"{'Type'.ljust(col_type)}"
+        )
+        click.secho(header, fg='cyan', bold=True)
+
+        # Print separator
+        separator = (
+            "─" * col_room + "─┼─" +
+            "─" * col_name + "─┼─" +
+            "─" * col_status + "─┼─" +
+            "─" * col_model + "─┼─" +
+            "─" * col_type
+        )
+        click.secho(separator, fg='cyan')
+
+        # Print rows
+        for row in rows:
+            # Status with icon and colour
+            if row['on']:
+                status_icon = "💡"
+                status_text = click.style("ON", fg='green', bold=True)
+                status_display_width = 2 + 1 + 2  # emoji (2) + space (1) + "ON" (2)
+            else:
+                status_icon = "⚫"
+                status_text = click.style("OFF", fg='red')
+                status_display_width = 2 + 1 + 3  # emoji (2) + space (1) + "OFF" (3)
+
+            status_display = status_icon + " " + status_text
+
+            row_str = (
+                f"{click.style(row['room'], fg='blue')}{' ' * (col_room - len(row['room']))} │ "
+                f"{click.style(row['name'], fg='white')}{' ' * (col_name - len(row['name']))} │ "
+                f"{status_display}{' ' * (col_status - status_display_width)} │ "
+                f"{click.style(row['model'], fg='yellow')}{' ' * (col_model - len(row['model']))} │ "
+                f"{click.style(row['type'], fg='bright_black')}{' ' * (col_type - len(row['type']))}"
+            )
+            click.echo(row_str)
+
+        click.echo()
+
+        # Summary
+        total_lights = sum(len(room_lights) for room_lights in lights_by_room.values())
+        total_on = sum(1 for room_lights in lights_by_room.values() for l in room_lights if l['on'])
+        total_off = total_lights - total_on
+
+        # Get unique models
+        all_lights = [l for room_lights in lights_by_room.values() for l in room_lights]
+        unique_models = {}
+        for light in all_lights:
+            model = light['model_id']
+            if model not in unique_models:
+                unique_models[model] = 0
+            unique_models[model] += 1
+
+        click.secho("Summary:", fg='cyan', bold=True)
+        click.echo(f"  Total lights: {total_lights}")
+        click.echo(f"  {click.style('●', fg='green')} ON: {total_on}  {click.style('●', fg='red')} OFF: {total_off}")
+        click.echo()
+        click.secho("Models:", fg='cyan', bold=True)
+        for model, count in sorted(unique_models.items()):
+            click.echo(f"  {model}: {count} light{'s' if count != 1 else ''}")
+        click.echo()
+
+    except Exception as e:
+        click.echo(f"Error getting light status: {e}")

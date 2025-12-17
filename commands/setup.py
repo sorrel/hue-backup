@@ -205,6 +205,8 @@ def help_command():
                 ("button-data -r <room>", "Show wall controls filtered by room"),
                 ("plugs", "View smart plugs with status and model info"),
                 ("plugs -r <room>", "View plugs filtered by room"),
+                ("lights", "View light bulbs/fixtures with status and model"),
+                ("lights -r <room>", "View lights filtered by room"),
                 ("scene-details", "Show scenes with light details"),
                 ("scene-details -r <room>", "Show scenes filtered by room"),
                 ("auto-dynamic", "View auto-dynamic status for all scenes"),
