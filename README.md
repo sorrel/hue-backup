@@ -216,12 +216,23 @@ uv run python hue_backup.py diff-room "Bedroom"
 hue_backup.py            # Entry point
 core/                    # Controller, auth, cache, config
 models/                  # Room operations, button config, utilities
-  └── button_config.py   # Button programming business logic (NEW)
-commands/                # CLI commands (setup, inspection, control, mapping)
-  └── mapping.py         # Includes program-button command (NEW)
-tests/                   # 115 tests, all mocked
-  ├── test_button_config.py  # 33 new tests for button configuration
-  └── test_utils.py      # 11 additional tests for utilities
+  └── button_config.py   # Button programming business logic
+commands/                # CLI commands
+  ├── setup.py           # Configuration and help
+  ├── cache.py           # Cache management
+  ├── room.py            # Room backup/restore
+  ├── control.py         # Light/scene control
+  ├── mapping.py         # Button mapping and monitoring
+  └── inspection/        # Device inspection (modular structure)
+      ├── helpers.py     # Shared utilities (259 lines)
+      ├── scenes.py      # Scene inspection (1 command)
+      ├── status.py      # Status/overview (3 commands)
+      ├── devices.py     # Device listing (4 commands)
+      └── switches.py    # Switch inspection (6 commands)
+tests/                   # 127 tests, all mocked
+  ├── test_button_config.py  # Button configuration tests
+  ├── test_inspection.py     # Inspection command tests
+  └── test_utils.py      # Utility function tests
 cache/                   # Local cache (gitignored)
   └── saved-rooms/       # Timestamped room backups
 ```
@@ -232,30 +243,31 @@ cache/                   # Local cache (gitignored)
 # Install dependencies with dev extras (includes pytest)
 uv sync --extra dev
 
-# Run all tests (115 total, all passing)
+# Run all tests (127 total, all passing)
 uv run pytest -v
 
 # Run specific test file
 uv run pytest tests/test_button_config.py -v
+uv run pytest tests/test_inspection.py -v
 ```
 
 **Test Coverage:**
-- 115 total tests (71 original + 44 new)
+- 127 tests total, all passing
 - All tests use mocks (no actual API calls or file writes)
 - Test files:
   - `test_structure.py` - Directory and file structure
-  - `test_utils.py` - Display width, button events, lookups (now 22 tests)
+  - `test_utils.py` - Display width, button events, lookups
   - `test_config.py` - Configuration loading, 1Password
   - `test_cache.py` - Cache management
   - `test_controller.py` - Controller delegation
-  - `test_inspection.py` - Inspection commands
-  - `test_button_config.py` - Button programming logic (NEW, 33 tests)
+  - `test_inspection.py` - Inspection commands (14 tests)
+  - `test_button_config.py` - Button programming logic (33 tests)
 
 ## Technical Details
 
 ### Behaviour Instance Formats
 
-The `program-button` command supports both Hue API formats:
+The `program-button` command supports both Hue API formats, but prefers the new:
 
 **Old format** (button1/button2/button3/button4):
 ```json
@@ -346,21 +358,6 @@ uv run python hue_backup.py reload  # Force cache refresh
 
 **1Password not working?**
 Falls back to local config automatically. Check `op signin` if you want 1Password.
-
-## Recent Updates
-
-### 2025-12-14: Button Programming Command
-
-- **NEW: `program-button` command** - Programmatically modify button configurations
-- **Complete seasonal workflow** - save → programme → diff → restore
-- **All action types supported** - Scene cycles, time-based schedules, single scenes, dimming, long press
-- **Fuzzy matching** - Partial switch/scene names work automatically
-- **Dual format support** - Handles both old (button1/button2) and new (buttons dict) API formats
-- **Write-through cache** - Local state stays synchronized after modifications
-- **44 new tests** - 115 total tests, all passing
-- **3 new modules** - `models/button_config.py`, `tests/test_button_config.py`, enhanced utilities
-
-See "Programming Buttons" section above for usage examples.
 
 ## Notes
 

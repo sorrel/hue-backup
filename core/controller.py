@@ -59,6 +59,7 @@ class HueController:
         self._behaviour_instances_cache = None
         self._lights_cache = None
         self._rooms_cache = None
+        self._zones_cache = None
         self._device_power_cache = None
 
     def _get_cached_resource(self, resource_type: str, cache_key: str, endpoint: str) -> list[dict]:
@@ -315,6 +316,10 @@ class HueController:
     def get_rooms(self) -> list[dict]:
         """Get all rooms/groups (v2 API)."""
         return self._get_cached_resource('_rooms_cache', 'rooms', '/resource/room')
+
+    def get_zones(self) -> list[dict]:
+        """Get all zones (v2 API)."""
+        return self._get_cached_resource('_zones_cache', 'zones', '/resource/zone')
 
     @staticmethod
     def _extract_where_lists_from_config(config: dict) -> list[list[dict]]:

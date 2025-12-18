@@ -117,6 +117,7 @@ def cache_info_command():
     if counts:
         click.echo(f"  Lights:       {counts.get('lights', 0)}")
         click.echo(f"  Rooms:        {counts.get('rooms', 0)}")
+        click.echo(f"  Zones:        {counts.get('zones', 0)}")
         click.echo(f"  Scenes:       {counts.get('scenes', 0)}")
         click.echo(f"  Devices:      {counts.get('devices', 0)}")
         click.echo(f"  Buttons:      {counts.get('buttons', 0)}")

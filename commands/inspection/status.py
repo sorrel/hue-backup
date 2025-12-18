@@ -115,6 +115,43 @@ def groups_command(auto_reload: bool):
 
 @click.command()
 @click.option('--auto-reload/--no-auto-reload', default=True, help='Auto-reload stale cache (default: yes)')
+def zones_command(auto_reload: bool):
+    """List all zones.
+
+    Uses cached data, automatically reloading if the cache is over 24 hours old.
+    Zones are hierarchical groupings that can contain multiple rooms.
+    """
+    cache_controller = get_cache_controller(auto_reload)
+    if not cache_controller:
+        return
+
+    try:
+        zones = cache_controller.get_zones()
+        if not zones:
+            click.echo("No zones found.")
+            return
+
+        click.echo(f"\nAvailable zones ({len(zones)}):\n")
+        for zone in zones:
+            name = zone.get('metadata', {}).get('name', 'Unnamed')
+            archetype = zone.get('metadata', {}).get('archetype', 'Unknown')
+            children = zone.get('children', [])
+
+            # Count child rooms and lights
+            room_count = sum(1 for child in children if child.get('rtype') == 'room')
+            light_count = sum(1 for child in children if child.get('rtype') == 'light')
+
+            click.echo(f"  • {name}")
+            click.echo(f"    Type: {archetype}")
+            click.echo(f"    Rooms: {room_count}")
+            click.echo(f"    Lights: {light_count}")
+            click.echo()
+    except Exception as e:
+        click.echo(f"Error listing zones: {e}")
+
+
+@click.command()
+@click.option('--auto-reload/--no-auto-reload', default=True, help='Auto-reload stale cache (default: yes)')
 def scenes_command(auto_reload: bool):
     """List all available scenes. Uses cached data."""
     cache_controller = get_cache_controller(auto_reload)

@@ -32,6 +32,7 @@ def reload_cache(controller: 'HueController') -> bool:
     # Clear memory caches to force fresh fetches
     controller._lights_cache = None
     controller._rooms_cache = None
+    controller._zones_cache = None
     controller._scenes_cache = None
     controller._devices_cache = None
     controller._buttons_cache = None
@@ -42,6 +43,7 @@ def reload_cache(controller: 'HueController') -> bool:
         # Fetch all resources
         lights = controller.get_lights()
         rooms = controller.get_rooms()
+        zones = controller.get_zones()
         scenes = controller.get_scenes()
         devices = controller.get_devices()
         buttons = controller.get_buttons()
@@ -53,6 +55,7 @@ def reload_cache(controller: 'HueController') -> bool:
             'last_updated': datetime.now().isoformat(),
             'lights': lights,
             'rooms': rooms,
+            'zones': zones,
             'scenes': scenes,
             'devices': devices,
             'buttons': buttons,
@@ -64,6 +67,7 @@ def reload_cache(controller: 'HueController') -> bool:
 
         click.echo(f"✓ Cached {len(lights)} lights")
         click.echo(f"✓ Cached {len(rooms)} rooms")
+        click.echo(f"✓ Cached {len(zones)} zones")
         click.echo(f"✓ Cached {len(scenes)} scenes")
         click.echo(f"✓ Cached {len(devices)} devices")
         click.echo(f"✓ Cached {len(buttons)} buttons")

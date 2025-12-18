@@ -47,6 +47,7 @@ from commands.inspection import (
     scene_details_command,
     status_command,
     groups_command,
+    zones_command,
     scenes_command,
     switches_command,
     debug_buttons_command,
@@ -352,6 +353,7 @@ cli.add_command(restore_room_command)
 cli.add_command(scene_details_command, name='scene-details')
 cli.add_command(status_command, name='status')
 cli.add_command(groups_command, name='groups')
+cli.add_command(zones_command, name='zones')
 cli.add_command(scenes_command, name='scenes')
 cli.add_command(switches_command, name='switches')
 cli.add_command(debug_buttons_command, name='debug-buttons')

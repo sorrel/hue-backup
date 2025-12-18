@@ -229,6 +229,7 @@ def help_command():
                 ("scene-details", "Show scenes with light details"),
                 ("scene-details -r <room>", "Show scenes filtered by room"),
                 ("groups", "List all rooms/groups"),
+                ("zones", "List all zones"),
                 ("auto-dynamic", "View auto-dynamic status for all scenes"),
                 ("auto-dynamic -r <room>", "View auto-dynamic filtered by room"),
                 ("bridge-auto", "Show bridge automations (deprecated)"),
