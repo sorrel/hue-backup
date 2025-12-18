@@ -216,12 +216,23 @@ uv run python hue_backup.py diff-room "Bedroom"
 hue_backup.py            # Entry point
 core/                    # Controller, auth, cache, config
 models/                  # Room operations, button config, utilities
-  └── button_config.py   # Button programming business logic (NEW)
-commands/                # CLI commands (setup, inspection, control, mapping)
-  └── mapping.py         # Includes program-button command (NEW)
-tests/                   # 115 tests, all mocked
-  ├── test_button_config.py  # 33 new tests for button configuration
-  └── test_utils.py      # 11 additional tests for utilities
+  └── button_config.py   # Button programming business logic
+commands/                # CLI commands
+  ├── setup.py           # Configuration and help
+  ├── cache.py           # Cache management
+  ├── room.py            # Room backup/restore
+  ├── control.py         # Light/scene control
+  ├── mapping.py         # Button mapping and monitoring
+  └── inspection/        # Device inspection (modular structure)
+      ├── helpers.py     # Shared utilities (259 lines)
+      ├── scenes.py      # Scene inspection (1 command)
+      ├── status.py      # Status/overview (3 commands)
+      ├── devices.py     # Device listing (4 commands)
+      └── switches.py    # Switch inspection (6 commands)
+tests/                   # 127 tests, all mocked
+  ├── test_button_config.py  # Button configuration tests
+  ├── test_inspection.py     # Inspection command tests
+  └── test_utils.py      # Utility function tests
 cache/                   # Local cache (gitignored)
   └── saved-rooms/       # Timestamped room backups
 ```
@@ -232,24 +243,25 @@ cache/                   # Local cache (gitignored)
 # Install dependencies with dev extras (includes pytest)
 uv sync --extra dev
 
-# Run all tests (115 total, all passing)
+# Run all tests (127 total, all passing)
 uv run pytest -v
 
 # Run specific test file
 uv run pytest tests/test_button_config.py -v
+uv run pytest tests/test_inspection.py -v
 ```
 
 **Test Coverage:**
-- Over 100 tests
+- 127 tests total, all passing
 - All tests use mocks (no actual API calls or file writes)
 - Test files:
   - `test_structure.py` - Directory and file structure
-  - `test_utils.py` - Display width, button events, lookups (now 22 tests)
+  - `test_utils.py` - Display width, button events, lookups
   - `test_config.py` - Configuration loading, 1Password
   - `test_cache.py` - Cache management
   - `test_controller.py` - Controller delegation
-  - `test_inspection.py` - Inspection commands
-  - `test_button_config.py` - Button programming logic (NEW, 33 tests)
+  - `test_inspection.py` - Inspection commands (14 tests)
+  - `test_button_config.py` - Button programming logic (33 tests)
 
 ## Technical Details
 
