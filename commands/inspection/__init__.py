@@ -18,6 +18,7 @@ from .scenes import scene_details_command
 from .status import (
     status_command,
     groups_command,
+    zones_command,
     scenes_command,
 )
 
@@ -71,6 +72,7 @@ __all__ = [
     # Status commands
     'status_command',
     'groups_command',
+    'zones_command',
     'scenes_command',
 
     # Switch commands

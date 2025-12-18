@@ -671,7 +671,7 @@ def all_devices_command(room: str, auto_reload: bool):
             device_type = item['type']
             type_counts[device_type] = type_counts.get(device_type, 0) + 1
 
-        click.secho("Summary:", fg='cyan', bold=True)
+        click.secho("\nSummary:", fg='cyan', bold=True)
         click.echo(f"  Total devices: {len(all_items)}")
         for device_type in sorted(type_counts.keys()):
             count = type_counts[device_type]
