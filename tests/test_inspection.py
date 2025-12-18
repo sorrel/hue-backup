@@ -128,7 +128,7 @@ class TestGroupsCommand:
 
         assert result.exit_code == 0
         assert 'Living Room' in result.output
-        assert 'Lights: 2' in result.output  # Should count only lights
+        assert 'living_room       2' in result.output  # Should count only lights (table format)
 
 
 class TestStatusCommand:
@@ -162,10 +162,10 @@ class TestStatusCommand:
 
         mock_get_cache.assert_called_once_with(False)
         assert result.exit_code == 0
-        assert '1 light devices' in result.output
-        assert '1 light resources' in result.output
-        assert '1 rooms' in result.output
-        assert '1 scenes' in result.output
+        assert 'light devices   : 1' in result.output
+        assert 'light resources : 1' in result.output
+        assert 'rooms           : 1' in result.output
+        assert 'scenes          : 1' in result.output
 
 
 class TestSwitchInfoCommand:

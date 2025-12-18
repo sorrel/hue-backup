@@ -84,8 +84,7 @@ def status_command(auto_reload: bool):
         click.echo()
 
     except Exception as e:
-        click.echo(f"Error getting status: {e}")
-        click.echo()
+        click.echo(f"Error getting status: {e}\n")
 
 
 @click.command()
@@ -105,7 +104,8 @@ def groups_command(auto_reload: bool):
             click.echo("No rooms found.")
             return
 
-        click.echo(f"\nAvailable rooms ({len(rooms)}):\n")
+        # Build list of room items
+        room_items = []
         for room in rooms:
             name = room.get('metadata', {}).get('name', 'Unnamed')
             archetype = room.get('metadata', {}).get('archetype', 'Unknown')
@@ -114,10 +114,41 @@ def groups_command(auto_reload: bool):
             # Count actual light children (not other device types)
             light_count = sum(1 for child in children if child.get('rtype') == 'light')
 
-            click.echo(f"  • {name}")
-            click.echo(f"    Type: {archetype}")
-            click.echo(f"    Lights: {light_count}")
-            click.echo()
+            room_items.append({
+                'name': name,
+                'type': archetype,
+                'lights': light_count
+            })
+
+        # Sort by name
+        room_items.sort(key=lambda x: x['name'])
+
+        click.secho(f"\n=== Rooms ({len(room_items)}) ===", fg='cyan', bold=True)
+        click.echo()
+
+        # Calculate column widths
+        col_name = max((len(r['name']) for r in room_items), default=0)
+        col_type = max((len(r['type']) for r in room_items), default=0)
+        col_lights = max((len(str(r['lights'])) for r in room_items), default=0)
+
+        # Ensure minimum widths for headers
+        col_name = max(col_name, len("Room Name"))
+        col_type = max(col_type, len("Type"))
+        col_lights = max(col_lights, len("Lights"))
+
+        # Print header
+        header = f"  {'Room Name':<{col_name}}  {'Type':<{col_type}}  {'Lights':>{col_lights}}"
+        click.echo(click.style(header, fg='white', bold=True))
+        click.echo(click.style("  " + "─" * (col_name + col_type + col_lights + 4), fg='white', dim=True))
+
+        # Print rows
+        for i, room in enumerate(room_items):
+            row = f"  {room['name']:<{col_name}}  {room['type']:<{col_type}}  {room['lights']:>{col_lights}}"
+            if i == len(room_items) - 1:
+                click.echo(row + "\n")
+            else:
+                click.echo(row)
+
     except Exception as e:
         click.echo(f"Error listing rooms: {e}")
 
@@ -140,7 +171,8 @@ def zones_command(auto_reload: bool):
             click.echo("No zones found.")
             return
 
-        click.echo(f"\nAvailable zones ({len(zones)}):\n")
+        # Build list of zone items
+        zone_items = []
         for zone in zones:
             name = zone.get('metadata', {}).get('name', 'Unnamed')
             archetype = zone.get('metadata', {}).get('archetype', 'Unknown')
@@ -150,11 +182,44 @@ def zones_command(auto_reload: bool):
             room_count = sum(1 for child in children if child.get('rtype') == 'room')
             light_count = sum(1 for child in children if child.get('rtype') == 'light')
 
-            click.echo(f"  • {name}")
-            click.echo(f"    Type: {archetype}")
-            click.echo(f"    Rooms: {room_count}")
-            click.echo(f"    Lights: {light_count}")
-            click.echo()
+            zone_items.append({
+                'name': name,
+                'type': archetype,
+                'rooms': room_count,
+                'lights': light_count
+            })
+
+        # Sort by name
+        zone_items.sort(key=lambda x: x['name'])
+
+        click.secho(f"\n=== Zones ({len(zone_items)}) ===", fg='cyan', bold=True)
+        click.echo()
+
+        # Calculate column widths
+        col_name = max((len(z['name']) for z in zone_items), default=0)
+        col_type = max((len(z['type']) for z in zone_items), default=0)
+        col_rooms = max((len(str(z['rooms'])) for z in zone_items), default=0)
+        col_lights = max((len(str(z['lights'])) for z in zone_items), default=0)
+
+        # Ensure minimum widths for headers
+        col_name = max(col_name, len("Zone Name"))
+        col_type = max(col_type, len("Type"))
+        col_rooms = max(col_rooms, len("Rooms"))
+        col_lights = max(col_lights, len("Lights"))
+
+        # Print header
+        header = f"  {'Zone Name':<{col_name}}  {'Type':<{col_type}}  {'Rooms':>{col_rooms}}  {'Lights':>{col_lights}}"
+        click.echo(click.style(header, fg='white', bold=True))
+        click.echo(click.style("  " + "─" * (col_name + col_type + col_rooms + col_lights + 6), fg='white', dim=True))
+
+        # Print rows
+        for i, zone in enumerate(zone_items):
+            row = f"  {zone['name']:<{col_name}}  {zone['type']:<{col_type}}  {zone['rooms']:>{col_rooms}}  {zone['lights']:>{col_lights}}"
+            if i == len(zone_items) - 1:
+                click.echo(row + "\n")
+            else:
+                click.echo(row)
+
     except Exception as e:
         click.echo(f"Error listing zones: {e}")
 
@@ -177,18 +242,59 @@ def scenes_command(auto_reload: bool):
         rooms_list = cache_controller.get_rooms()
         room_lookup = create_name_lookup(rooms_list)
 
-        click.echo(f"\nAvailable scenes ({len(scenes_list)}):\n")
+        # Build list of scene items
+        scene_items = []
         for scene in scenes_list:
             name = scene.get('metadata', {}).get('name', 'Unnamed')
-            scene_id = scene.get('id', 'Unknown')
             actions = scene.get('actions', [])
             room_rid = scene.get('group', {}).get('rid')
             room_name = room_lookup.get(room_rid, 'N/A')
 
-            click.echo(f"  • {name}")
-            click.echo(f"    ID: {scene_id[:16]}...")
-            click.echo(f"    Room: {room_name}")
-            click.echo(f"    Lights: {len(actions)}")
-            click.echo()
+            scene_items.append({
+                'name': name,
+                'room': room_name,
+                'lights': len(actions)
+            })
+
+        # Sort by room then name
+        scene_items.sort(key=lambda x: (x['room'], x['name']))
+
+        click.secho(f"\n=== Scenes ({len(scene_items)}) ===", fg='cyan', bold=True)
+        click.echo()
+
+        # Calculate column widths
+        col_name = max((len(s['name']) for s in scene_items), default=0)
+        col_room = max((len(s['room']) for s in scene_items), default=0)
+        col_lights = max((len(str(s['lights'])) for s in scene_items), default=0)
+
+        # Ensure minimum widths for headers
+        col_name = max(col_name, len("Scene Name"))
+        col_room = max(col_room, len("Room"))
+        col_lights = max(col_lights, len("Lights"))
+
+        # Print header
+        header = f"  {'Scene Name':<{col_name}}  {'Room':<{col_room}}  {'Lights':>{col_lights}}"
+        click.echo(click.style(header, fg='white', bold=True))
+        click.echo(click.style("  " + "─" * (col_name + col_room + col_lights + 4), fg='white', dim=True))
+
+        # Print rows with room grouping
+        last_room = None
+        for i, scene in enumerate(scene_items):
+            # Show room name only on first occurrence
+            room_display = scene['room'] if scene['room'] != last_room else ""
+
+            # Format with proper padding first, then apply colour
+            if room_display:
+                room_part = click.style(f"{room_display:<{col_room}}", fg='bright_blue')
+            else:
+                room_part = " " * col_room
+
+            row = f"  {scene['name']:<{col_name}}  {room_part}  {scene['lights']:>{col_lights}}"
+            if i == len(scene_items) - 1:
+                click.echo(row + "\n")
+            else:
+                click.echo(row)
+            last_room = scene['room']
+
     except Exception as e:
         click.echo(f"Error listing scenes: {e}")
