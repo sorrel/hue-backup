@@ -459,7 +459,7 @@ def other_command(room: str, auto_reload: bool):
         display_device_table(device_items, columns, "=== Other Devices ===", emoji_columns=['name'])
 
         # Summary with model breakdown
-        click.secho("Summary:", fg='cyan', bold=True)
+        click.secho("\nSummary:", fg='cyan', bold=True)
         click.echo(f"  Total devices: {len(device_items)}")
         click.echo()
 
@@ -505,6 +505,7 @@ def all_devices_command(room: str, auto_reload: bool):
       uv run python hue_backup.py all              # All devices
       uv run python hue_backup.py all -r living    # Only living room devices
     """
+    total_devices = f"Total devices"
     cache_controller = get_cache_controller(auto_reload)
     if not cache_controller:
         return
@@ -672,12 +673,23 @@ def all_devices_command(room: str, auto_reload: bool):
             type_counts[device_type] = type_counts.get(device_type, 0) + 1
 
         click.secho("\nSummary:", fg='cyan', bold=True)
-        click.echo(f"  Total devices: {len(all_items)}")
+        click.echo(f"  Total devices : {len(all_items)}\n")
+
+        items = []
         for device_type in sorted(type_counts.keys()):
             count = type_counts[device_type]
-            # Proper pluralization
+
+            # Proper pluralisation
             plural_type = device_type + 'es' if device_type == 'Switch' else device_type + 's'
-            click.echo(f"  {plural_type}: {count}")
+            items.append((plural_type, count))
+            
+        # Work out longest label and widest number
+        max_label_len = max(len(total_devices), *(len(label) for label, _ in items))
+        max_num_len = max(len(str(value)) for _, value in items)
+        
+        # Print aligned output
+        for label, value in items:
+            click.echo(f"  {label:<{max_label_len}} : {value:>{max_num_len}}")
         click.echo()
 
     except Exception as e:
