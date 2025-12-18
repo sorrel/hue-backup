@@ -65,13 +65,22 @@ def status_command(auto_reload: bool):
         light_devices_count = len(light_devices)
         other_count = len(other_devices)
 
-        click.echo(f"{light_devices_count} light devices")
-        click.echo(f"{plugs_count} smart plugs")
-        click.echo(f"{switches_count} switches")
-        click.echo(f"{other_count} other devices")
-        click.echo(f"{rooms_count} rooms")
-        click.echo(f"{scenes_count} scenes")
-        click.echo(f"{lights_count} light resources")
+        # Prepare items as (label, value) pairs
+        items = [("light devices", light_devices_count),
+                 ("smart plugs", plugs_count),
+                 ("switches", switches_count),
+                 ("other devices", other_count),
+                 ("rooms", rooms_count),
+                 ("scenes", scenes_count),
+                 ("light resources", lights_count),]
+                 
+        # Work out the longest label and widest number
+        max_label_len = max(len(label) for label, _ in items)
+        max_num_len = max(len(str(value)) for _, value in items)
+        
+        # Print with proper alignment
+        for label, value in items:
+            click.echo(f"  {label:<{max_label_len}} : {value:>{max_num_len}}")
         click.echo()
 
     except Exception as e:
