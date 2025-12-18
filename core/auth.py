@@ -374,8 +374,7 @@ def get_auth_credentials(interactive: bool = True) -> AuthCredentials | None:
         return None
 
     # Step 1: Discover bridges
-    click.echo()
-    click.echo("Discovering Hue bridges...")
+    click.echo("\nDiscovering Hue bridges...")
     bridges = discover_bridges()
 
     bridge_ip = None
@@ -425,8 +424,7 @@ def get_auth_credentials(interactive: bool = True) -> AuthCredentials | None:
         }
     else:
         click.secho("✗ Failed to save configuration", fg='red')
-        click.echo()
-        click.echo("You can manually create the config file:")
+        click.echo("\nYou can manually create the config file:")
         click.echo(f"  mkdir -p {USER_CONFIG_FILE.parent}")
         click.echo(f"  cat > {USER_CONFIG_FILE} << 'EOF'")
         click.echo(f'  {{"bridge_ip": "{bridge_ip}", "api_token": "{api_token}"}}')

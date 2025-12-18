@@ -174,8 +174,7 @@ class ColouredGroup(click.Group):
 def help_command():
     """Display help and common commands."""
     # Header
-    click.echo()
-    click.secho("╔══════════════════════════════════════════════════════════════════════════════════╗", fg='cyan', bold=True)
+    click.secho("\n╔══════════════════════════════════════════════════════════════════════════════════╗", fg='cyan', bold=True)
     click.secho("║                       Hue Backup Control - Quick Reference                       ║", fg='cyan', bold=True)
     click.secho("╚══════════════════════════════════════════════════════════════════════════════════╝", fg='cyan', bold=True)
     click.echo()
@@ -318,8 +317,7 @@ def configure_command(reconfigure):
     )
     from core.config import is_op_available
 
-    click.echo()
-    click.secho("╔══════════════════════════════════════════════════════════╗", fg='cyan', bold=True)
+    click.secho("\n╔══════════════════════════════════════════════════════════╗", fg='cyan', bold=True)
     click.secho("║          Hue Backup - Bridge Configuration               ║", fg='cyan', bold=True)
     click.secho("╚══════════════════════════════════════════════════════════╝", fg='cyan', bold=True)
     click.echo()
@@ -374,8 +372,7 @@ def configure_command(reconfigure):
     bridge_ip = None
 
     if not bridges:
-        click.echo()
-        click.echo("You can find your bridge IP by:")
+        click.echo("\nYou can find your bridge IP by:")
         click.echo("  • Check your router's DHCP client list")
         click.echo("  • Look for a device named 'Philips hue'")
         click.echo("  • Or use the Hue app: Settings → Hue Bridges → (i) icon")
