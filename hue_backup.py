@@ -74,6 +74,9 @@ from commands.mapping import (
     monitor_command,
     program_button_command
 )
+from commands.zone_programming import (
+    program_zone_switch_command
+)
 
 # Disable SSL warnings for self-signed certificate
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -379,6 +382,9 @@ cli.add_command(mappings_command, name='mappings')
 cli.add_command(discover_command, name='discover')
 cli.add_command(monitor_command, name='monitor')
 cli.add_command(program_button_command, name='program-button')
+
+# Zone programming commands
+cli.add_command(program_zone_switch_command, name='program-zone-switch')
 
 
 if __name__ == '__main__':
