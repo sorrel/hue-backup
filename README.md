@@ -62,6 +62,10 @@ all                      # All devices in one unified view
 all -r "Living"          # Filter all devices by room
 scene-details            # Scenes with light configurations
 scenes                   # List all scenes
+groups                   # List all rooms/groups
+zones                    # List all zones (table view)
+zones -v                 # List zones with detailed light listings
+zones --multi-zone       # Show lights that appear in multiple zones
 switches                 # List all switches
 status                   # Bridge overview
 ```

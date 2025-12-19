@@ -155,14 +155,21 @@ def groups_command(auto_reload: bool):
 
 @click.command()
 @click.option('--auto-reload/--no-auto-reload', default=True, help='Auto-reload stale cache (default: yes)')
-def zones_command(auto_reload: bool):
+@click.option('-v', '--verbose', is_flag=True, help='Show lights in each zone')
+@click.option('--multi-zone', is_flag=True, help='Show lights in multiple zones')
+def zones_command(auto_reload: bool, verbose: bool, multi_zone: bool):
     """List all zones.
 
     Uses cached data, automatically reloading if the cache is over 24 hours old.
-    Zones are hierarchical groupings that can contain multiple rooms.
+    Zones are groupings of lights. Use -v to see which lights are in each zone.
     """
     cache_controller = get_cache_controller(auto_reload)
     if not cache_controller:
+        return
+
+    # Check mutual exclusivity
+    if verbose and multi_zone:
+        click.echo("Error: Cannot use -v and --multi-zone together. Choose one mode.")
         return
 
     try:
@@ -171,57 +178,174 @@ def zones_command(auto_reload: bool):
             click.echo("No zones found.")
             return
 
-        # Build list of zone items
-        zone_items = []
-        for zone in zones:
-            name = zone.get('metadata', {}).get('name', 'Unnamed')
-            archetype = zone.get('metadata', {}).get('archetype', 'Unknown')
-            children = zone.get('children', [])
+        # Get lights for lookups
+        lights_list = cache_controller.get_lights()
+        light_lookup = {light['id']: light.get('metadata', {}).get('name', 'Unnamed')
+                        for light in lights_list}
 
-            # Count child rooms and lights
-            room_count = sum(1 for child in children if child.get('rtype') == 'room')
-            light_count = sum(1 for child in children if child.get('rtype') == 'light')
-
-            zone_items.append({
-                'name': name,
-                'type': archetype,
-                'rooms': room_count,
-                'lights': light_count
-            })
-
-        # Sort by name
-        zone_items.sort(key=lambda x: x['name'])
-
-        click.secho(f"\n=== Zones ({len(zone_items)}) ===", fg='cyan', bold=True)
-        click.echo()
-
-        # Calculate column widths
-        col_name = max((len(z['name']) for z in zone_items), default=0)
-        col_type = max((len(z['type']) for z in zone_items), default=0)
-        col_rooms = max((len(str(z['rooms'])) for z in zone_items), default=0)
-        col_lights = max((len(str(z['lights'])) for z in zone_items), default=0)
-
-        # Ensure minimum widths for headers
-        col_name = max(col_name, len("Zone Name"))
-        col_type = max(col_type, len("Type"))
-        col_rooms = max(col_rooms, len("Rooms"))
-        col_lights = max(col_lights, len("Lights"))
-
-        # Print header
-        header = f"  {'Zone Name':<{col_name}}  {'Type':<{col_type}}  {'Rooms':>{col_rooms}}  {'Lights':>{col_lights}}"
-        click.echo(click.style(header, fg='white', bold=True))
-        click.echo(click.style("  " + "─" * (col_name + col_type + col_rooms + col_lights + 6), fg='white', dim=True))
-
-        # Print rows
-        for i, zone in enumerate(zone_items):
-            row = f"  {zone['name']:<{col_name}}  {zone['type']:<{col_type}}  {zone['rooms']:>{col_rooms}}  {zone['lights']:>{col_lights}}"
-            if i == len(zone_items) - 1:
-                click.echo(row + "\n")
-            else:
-                click.echo(row)
+        if multi_zone:
+            _show_multi_zone_analysis(zones, light_lookup)
+        elif verbose:
+            _show_zones_verbose(zones, light_lookup)
+        else:
+            _show_zones_table(zones)
 
     except Exception as e:
         click.echo(f"Error listing zones: {e}")
+
+
+def _show_zones_table(zones: list[dict]):
+    """Display zones in table format (default mode)."""
+    # Build list of zone items
+    zone_items = []
+    for zone in zones:
+        name = zone.get('metadata', {}).get('name', 'Unnamed')
+        archetype = zone.get('metadata', {}).get('archetype', 'Unknown')
+        children = zone.get('children', [])
+
+        # Count child lights only (zones don't contain rooms)
+        light_count = sum(1 for child in children if child.get('rtype') == 'light')
+
+        zone_items.append({
+            'name': name,
+            'type': archetype,
+            'lights': light_count
+        })
+
+    # Sort by name
+    zone_items.sort(key=lambda x: x['name'])
+
+    click.secho(f"\n=== Zones ({len(zone_items)}) ===", fg='cyan', bold=True)
+    click.echo()
+
+    # Calculate column widths
+    col_name = max((len(z['name']) for z in zone_items), default=0)
+    col_type = max((len(z['type']) for z in zone_items), default=0)
+    col_lights = max((len(str(z['lights'])) for z in zone_items), default=0)
+
+    # Ensure minimum widths for headers
+    col_name = max(col_name, len("Zone Name"))
+    col_type = max(col_type, len("Type"))
+    col_lights = max(col_lights, len("Lights"))
+
+    # Print header
+    header = f"  {'Zone Name':<{col_name}}  {'Type':<{col_type}}  {'Lights':>{col_lights}}"
+    click.echo(click.style(header, fg='white', bold=True))
+    click.echo(click.style("  " + "─" * (col_name + col_type + col_lights + 4), fg='white', dim=True))
+
+    # Print rows
+    for i, zone in enumerate(zone_items):
+        row = f"  {zone['name']:<{col_name}}  {zone['type']:<{col_type}}  {zone['lights']:>{col_lights}}"
+        if i == len(zone_items) - 1:
+            click.echo(row + "\n")
+        else:
+            click.echo(row)
+
+
+def _show_zones_verbose(zones: list[dict], light_lookup: dict):
+    """Display zones with detailed light listings (verbose mode)."""
+    # Sort zones by name
+    zones_sorted = sorted(zones, key=lambda z: z.get('metadata', {}).get('name', 'Unnamed'))
+
+    click.secho(f"\n=== Zones ({len(zones_sorted)}) ===", fg='cyan', bold=True)
+
+    for zone in zones_sorted:
+        name = zone.get('metadata', {}).get('name', 'Unnamed')
+        archetype = zone.get('metadata', {}).get('archetype', 'Unknown')
+        children = zone.get('children', [])
+
+        # Get light IDs in this zone
+        light_ids = [child['rid'] for child in children if child.get('rtype') == 'light']
+
+        click.echo()
+        click.secho(f"Zone: {name} ({archetype})", fg='bright_cyan')
+
+        if light_ids:
+            for light_id in light_ids:
+                light_name = light_lookup.get(light_id, 'Unknown')
+                click.echo(f"  • {light_name}")
+            click.echo(f"  Lights: {len(light_ids)}")
+        else:
+            click.echo("  No lights")
+
+    click.echo()
+
+
+def _show_multi_zone_analysis(zones: list[dict], light_lookup: dict):
+    """Display lights that appear in multiple zones."""
+    # Build reverse mapping: light_id -> [zone_names]
+    light_to_zones = {}
+    for zone in zones:
+        zone_name = zone.get('metadata', {}).get('name', 'Unnamed')
+        children = zone.get('children', [])
+
+        for child in children:
+            if child.get('rtype') == 'light':
+                light_id = child.get('rid')
+                light_to_zones.setdefault(light_id, []).append(zone_name)
+
+    # Filter to lights in 2+ zones
+    multi_zone_lights = {lid: znames for lid, znames in light_to_zones.items() if len(znames) > 1}
+
+    if not multi_zone_lights:
+        click.echo("\nNo lights found in multiple zones.\n")
+        return
+
+    # Build display items
+    items = []
+    for light_id, zone_names in multi_zone_lights.items():
+        light_name = light_lookup.get(light_id, 'Unknown')
+        items.append({
+            'name': light_name,
+            'zones': ', '.join(sorted(zone_names)),
+            'count': len(zone_names)
+        })
+
+    # Sort by count descending, then name
+    items.sort(key=lambda x: (-x['count'], x['name']))
+
+    click.secho(f"\n=== Lights in Multiple Zones ===", fg='cyan', bold=True)
+    click.echo()
+
+    # Calculate column widths
+    col_name = max((len(item['name']) for item in items), default=0)
+    col_zones = max((len(item['zones']) for item in items), default=0)
+    col_count = max((len(str(item['count'])) for item in items), default=0)
+
+    # Ensure minimum widths
+    col_name = max(col_name, len("Light Name"))
+    col_zones = max(col_zones, len("Zones"))
+    col_count = max(col_count, len("Count"))
+
+    # Print header
+    header = f"  {'Light Name':<{col_name}}  {'Zones':<{col_zones}}  {'Count':>{col_count}}"
+    click.echo(click.style(header, fg='white', bold=True))
+    click.echo(click.style("  " + "─" * (col_name + col_zones + col_count + 4), fg='white', dim=True))
+
+    # Print rows
+    for i, item in enumerate(items):
+        # Use bright yellow for lights in 3+ zones
+        if item['count'] >= 3:
+            name_display = click.style(item['name'], fg='bright_yellow')
+            zones_display = click.style(item['zones'], fg='bright_yellow')
+            count_display = click.style(str(item['count']), fg='bright_yellow')
+        else:
+            name_display = item['name']
+            zones_display = item['zones']
+            count_display = str(item['count'])
+
+        # Need to handle padding with styled text
+        row = f"  {name_display}{' ' * (col_name - len(item['name']))}  {zones_display}{' ' * (col_zones - len(item['zones']))}  {' ' * (col_count - len(str(item['count'])))}{count_display}"
+
+        if i == len(items) - 1:
+            click.echo(row + "\n")
+        else:
+            click.echo(row)
+
+    # Show summary
+    total_lights = len(light_to_zones)
+    percentage = (len(multi_zone_lights) / total_lights * 100) if total_lights > 0 else 0
+    click.echo(f"  Total: {len(multi_zone_lights)} lights in multiple zones ({percentage:.0f}% of {total_lights} lights)\n")
 
 
 @click.command()
