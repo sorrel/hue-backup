@@ -103,7 +103,9 @@ def filter_scene_actions_for_zone(scene: dict, zone_lights: list[str],
             # Light has an action in the source scene - use it
             final_actions.append(action_lookup[light_rid])
         else:
-            # Light is in zone but not in source scene - turn it off
+            # Light is in zone but not in source scene - turn it OFF
+            # (Hue API requires all zone lights in actions, but we only want
+            #  to control lights that were in the original scene)
             final_actions.append({
                 "target": {
                     "rid": light_rid,

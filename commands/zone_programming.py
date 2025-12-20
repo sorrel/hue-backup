@@ -15,10 +15,11 @@ from models.zone_utils import (
 @click.argument('zone_name')
 @click.argument('switch_name')
 @click.option('--button', '-b', multiple=True, type=int, help='Button numbers to program (e.g., -b 1 -b 2)')
+@click.option('--scenes', 'scene_names_str', help='Comma-separated scene names to use (overrides current button scenes)')
 @click.option('--exclude-button', multiple=True, help='Button and light to exclude (format: "BUTTON:LIGHT_NAME")')
 @click.option('--dry-run', is_flag=True, help='Show what would be done without making changes')
 @click.option('-y', '--yes', is_flag=True, help='Skip confirmation prompts')
-def program_zone_switch_command(zone_name, switch_name, button, exclude_button, dry_run, yes):
+def program_zone_switch_command(zone_name, switch_name, button, scene_names_str, exclude_button, dry_run, yes):
     """Program a switch with zone-specific auto-dynamic scenes.
 
     Takes existing scenes from specified buttons and creates zone-filtered versions
@@ -123,49 +124,85 @@ def program_zone_switch_command(zone_name, switch_name, button, exclude_button, 
     button_configs = {}  # Store new configurations
     created_scenes = []  # Track created scenes
 
+    # If --scenes provided, use those instead of reading from buttons
+    if scene_names_str:
+        # Parse comma-separated scene names
+        scene_names = [s.strip() for s in scene_names_str.split(',')]
+        click.echo(f"\nUsing provided scenes: {', '.join(scene_names)}")
+
+        # Find scene IDs by name
+        provided_scene_ids = []
+        for scene_name in scene_names:
+            matching = [s for s in scene_lookup.values() if s.get('metadata', {}).get('name') == scene_name]
+            if matching:
+                provided_scene_ids.append(matching[0]['id'])
+            else:
+                click.secho(f"  ⚠ Scene '{scene_name}' not found", fg='yellow')
+    else:
+        provided_scene_ids = None
+
     for button_num in sorted(button):
         click.echo(f"\n--- Button {button_num} ---")
 
-        # Get current scenes for this button
         button_key = f'button{button_num}'
-        if button_key not in config:
-            click.secho(f"✗ Button {button_num} not found in switch configuration", fg='red')
-            continue
 
-        button_config = config[button_key]
+        # Get current scenes for this button (or use provided scenes)
+        if provided_scene_ids:
+            current_scene_ids = provided_scene_ids
+            click.echo(f"  Using {len(current_scene_ids)} provided scenes")
+        else:
+            if button_key not in config:
+                click.secho(f"✗ Button {button_num} not found in switch configuration", fg='red')
+                continue
 
-        # Extract scene IDs from button configuration
-        current_scene_ids = []
+            button_config = config[button_key]
 
-        # Check for scene_cycle_extended format (new format)
-        if 'on_short_release' in button_config:
-            on_short = button_config['on_short_release']
-            if 'scene_cycle_extended' in on_short:
-                slots = on_short['scene_cycle_extended'].get('slots', [])
-                for slot in slots:
-                    # Slot can be either a list or a dict
-                    if isinstance(slot, list):
-                        # If it's a list, get the first element
-                        if slot and len(slot) > 0:
-                            slot_dict = slot[0]
+            # Detect button type
+            button_type = None
+            if 'on_short_release' in button_config:
+                on_short = button_config['on_short_release']
+                if 'scene_cycle_extended' in on_short:
+                    button_type = 'scene_cycle'
+                elif 'scene' in on_short:
+                    button_type = 'single_scene'
+                elif 'time_based_light_scene_extended' in on_short:
+                    button_type = 'time_based'
+
+            if button_type:
+                click.echo(f"  Current type: {button_type}")
+
+            # Extract scene IDs from button configuration
+            current_scene_ids = []
+
+            # Check for scene_cycle_extended format (new format)
+            if 'on_short_release' in button_config:
+                on_short = button_config['on_short_release']
+                if 'scene_cycle_extended' in on_short:
+                    slots = on_short['scene_cycle_extended'].get('slots', [])
+                    for slot in slots:
+                        # Slot can be either a list or a dict
+                        if isinstance(slot, list):
+                            # If it's a list, get the first element
+                            if slot and len(slot) > 0:
+                                slot_dict = slot[0]
+                            else:
+                                continue
                         else:
-                            continue
-                    else:
-                        slot_dict = slot
+                            slot_dict = slot
 
-                    action = slot_dict.get('action', {})
-                    recall = action.get('recall', {})
-                    scene_ref = recall.get('rid') or recall
-                    if isinstance(scene_ref, dict):
-                        scene_id = scene_ref.get('rid')
-                    else:
-                        scene_id = scene_ref
-                    if scene_id:
-                        current_scene_ids.append(scene_id)
+                        action = slot_dict.get('action', {})
+                        recall = action.get('recall', {})
+                        scene_ref = recall.get('rid') or recall
+                        if isinstance(scene_ref, dict):
+                            scene_id = scene_ref.get('rid')
+                        else:
+                            scene_id = scene_ref
+                        if scene_id:
+                            current_scene_ids.append(scene_id)
 
-        if not current_scene_ids:
-            click.secho(f"  No scenes found on button {button_num}", fg='yellow')
-            continue
+            if not current_scene_ids:
+                click.secho(f"  No scenes found on button {button_num}", fg='yellow')
+                continue
 
         click.echo(f"  Current scenes: {len(current_scene_ids)}")
         for scene_id in current_scene_ids:
@@ -239,9 +276,27 @@ def program_zone_switch_command(zone_name, switch_name, button, exclude_button, 
             new_scene_ids.append(new_scene_id)
 
         # Store new button configuration
+        # Get original button config if it exists, or create minimal one
+        if provided_scene_ids:
+            # When using provided scenes, always create scene_cycle_extended structure
+            # Start with existing button config (keeps where, on_long_press, etc.)
+            import copy
+            original_button_config = copy.deepcopy(config.get(button_key, {}))
+            # Replace on_short_release with scene_cycle_extended format
+            original_button_config['on_short_release'] = {
+                'scene_cycle_extended': {
+                    'slots': [],
+                    'with_off': {
+                        'enabled': False
+                    }
+                }
+            }
+        else:
+            original_button_config = button_config
+
         button_configs[button_num] = {
             'scene_ids': new_scene_ids,
-            'original_config': button_config
+            'original_config': original_button_config
         }
 
     # Step 6: Show summary and confirm
@@ -267,30 +322,64 @@ def program_zone_switch_command(zone_name, switch_name, button, exclude_button, 
     # Step 7: Update behaviour instance
     click.echo(f"\nUpdating switch configuration...")
 
-    # Build new configuration
-    new_config = config.copy()
+    # Build new configuration with deep copy
+    import copy
+    new_config = copy.deepcopy(config)
 
     for button_num, button_data in button_configs.items():
         button_key = f'button{button_num}'
         original = button_data['original_config']
         new_scene_ids = button_data['scene_ids']
 
+        # Always use the original_config which has been properly formatted
+        new_config[button_key] = copy.deepcopy(original)
+
         # Update the configuration with new scene IDs
         if 'on_short_release' in original:
             if 'scene_cycle_extended' in original['on_short_release']:
                 # Build new slots with new scene IDs
+                # Match the original format: each slot is a list containing one dict
                 new_slots = []
                 for scene_id in new_scene_ids:
-                    new_slots.append({
+                    new_slots.append([{
                         'action': {
-                            'recall': {'rid': scene_id}
+                            'recall': {
+                                'rid': scene_id,
+                                'rtype': 'scene'
+                            }
                         }
-                    })
+                    }])
 
                 new_config[button_key]['on_short_release']['scene_cycle_extended']['slots'] = new_slots
 
-    # Update the behaviour instance
-    success = controller.update_behaviour_instance(switch_id, new_config)
+    # Update the behaviour instance using DELETE + POST approach
+    # (PUT cannot change button action types, only update existing scene-cycles)
+    click.echo(f"\nUpdating switch configuration...")
+
+    # Get current behaviour instance for script_id and metadata
+    current_behaviour = controller._request('GET', f'/resource/behavior_instance/{switch_id}')
+    if not current_behaviour:
+        click.secho("\n✗ Failed to get current behaviour instance", fg='red', bold=True)
+        return
+
+    behaviour_data = current_behaviour[0]
+
+    # DELETE current instance
+    delete_result = controller._request('DELETE', f'/resource/behavior_instance/{switch_id}')
+    if not delete_result:
+        click.secho("\n✗ Failed to delete behaviour instance", fg='red', bold=True)
+        return
+
+    # POST new instance with updated configuration
+    post_payload = {
+        "script_id": behaviour_data['script_id'],
+        "enabled": True,
+        "configuration": new_config,
+        "metadata": behaviour_data['metadata']
+    }
+
+    post_result = controller._request('POST', '/resource/behavior_instance', post_payload)
+    success = post_result is not None and len(post_result) > 0
 
     if success:
         click.secho(f"\n✓ Switch programming updated successfully!", fg='green', bold=True)

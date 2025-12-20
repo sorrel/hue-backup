@@ -792,6 +792,22 @@ class HueController:
 
         return None
 
+    def delete_scene(self, scene_id: str) -> bool:
+        """Delete a scene (write-through cache).
+
+        Args:
+            scene_id: Scene ID to delete
+
+        Returns:
+            True if successful, False otherwise
+        """
+        result = self._request('DELETE', f'/resource/scene/{scene_id}')
+
+        if result is not None and self.use_cache:
+            self._remove_cache_entry('scenes', scene_id)
+
+        return result is not None
+
     def get_button_events(self) -> dict[str, dict]:
         """Get current button event states from all sensors."""
         sensors = self.get_sensors()
