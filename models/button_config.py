@@ -14,6 +14,18 @@ import copy
 from models.types import SwitchBehaviour
 
 
+# ===== Default Time-Based Schedule =====
+
+# Default schedule from Office Dimmer button 1 (used when --time-based specified without --slot)
+DEFAULT_TIME_SLOTS = [
+    "07:00=Energise",
+    "10:00=Concentrate",
+    "17:00=Read",
+    "20:00=Relax",
+    "23:00=Nightlight"
+]
+
+
 # ===== Switch & Button Lookup =====
 
 def find_switch_behaviour(switch_name: str, controller) -> SwitchBehaviour | None:
@@ -464,8 +476,7 @@ def validate_program_button_args(button_number, scenes, time_based, slot, scene,
     if slot and not time_based:
         return False, "--slot requires --time-based flag"
 
-    if time_based and not slot:
-        return False, "--time-based requires at least one --slot HH:MM=SceneName"
+    # Note: --time-based without --slot is now allowed (uses default schedule)
 
     # Check for dim up/down conflict
     if dim_up and dim_down:
@@ -495,168 +506,3 @@ def validate_program_button_args(button_number, scenes, time_based, slot, scene,
             return False, "--scenes requires at least 2 comma-separated scene names (use --scene for single scene)"
 
     return True, None
-
-
-def create_initial_behaviour_for_device(device: dict, controller) -> str | None:
-    """Create an initial behaviour instance for an unprogrammed device.
-
-    This creates a minimal behaviour instance with a single scene on each button
-    so that subsequent program-button calls can modify it.
-
-    Args:
-        device: Device dict with button services
-        controller: HueController instance
-
-    Returns:
-        New behaviour instance ID if successful, None otherwise
-    """
-    device_id = device['id']
-    device_name = device.get('metadata', {}).get('name', 'Unknown')
-    model_id = device.get('product_data', {}).get('model_id', '')
-
-    # Get button service RIDs
-    button_services = []
-    for service in device.get('services', []):
-        if service.get('rtype') == 'button':
-            button_services.append(service['rid'])
-
-    if len(button_services) < 4:
-        click.secho(f"✗ Device has {len(button_services)} buttons, expected 4", fg='red')
-        return None
-
-    # Find a zone/room for the 'where' field
-    rooms = controller.get_rooms()
-    zones = controller.get_zones()
-
-    device_room = None
-    # Check rooms first
-    for room in rooms:
-        for service in room.get('services', []):
-            if service.get('rid') == device_id:
-                device_room = room
-                break
-        if device_room:
-            break
-
-    # If not in a room, check zones
-    if not device_room:
-        for zone in zones:
-            for service in zone.get('services', []):
-                if service.get('rid') == device_id:
-                    device_room = zone
-                    break
-            if device_room:
-                break
-
-    if device_room:
-        where_rid = device_room['id']
-        where_rtype = device_room['type']
-    else:
-        # Default to bridge_home if we can't find the room
-        # Get bridge_home RID from an existing behaviour
-        behaviours = controller.get_behaviour_instances()
-        bridge_home_rid = None
-        for behaviour in behaviours:
-            config = behaviour.get('configuration', {})
-            where = config.get('where', [])
-            if where and len(where) > 0:
-                group = where[0].get('group', {})
-                if group.get('rtype') == 'bridge_home':
-                    bridge_home_rid = group.get('rid')
-                    break
-
-        if not bridge_home_rid:
-            click.secho(f"✗ Could not determine location for switch", fg='red')
-            return None
-
-        where_rid = bridge_home_rid
-        where_rtype = 'bridge_home'
-
-    # Find a scene to use as initial dummy (use "Bright" if available in the zone)
-    scenes = controller.get_scenes()
-    dummy_scene_id = None
-
-    # Try to find a scene for this zone/room
-    for scene in scenes:
-        scene_group = scene.get('group', {})
-        if scene_group.get('rid') == where_rid:
-            dummy_scene_id = scene['id']
-            break
-
-    # If no scene in zone, just use any scene
-    if not dummy_scene_id and scenes:
-        dummy_scene_id = scenes[0]['id']
-
-    if not dummy_scene_id:
-        click.secho(f"✗ No scenes available to initialize switch", fg='red')
-        return None
-
-    # Build buttons configuration with minimal scene-cycle (1 scene per button)
-    buttons_config = {}
-    for button_rid in button_services[:4]:
-        buttons_config[button_rid] = {
-            "on_short_release": {
-                "scene_cycle_extended": {
-                    "slots": [[{
-                        "action": {
-                            "recall": {
-                                "rid": dummy_scene_id,
-                                "rtype": "scene"
-                            }
-                        }
-                    }]],
-                    "with_off": {
-                        "enabled": False
-                    }
-                }
-            },
-            "on_long_press": {
-                "action": "all_off"
-            },
-            "where": [
-                {
-                    "group": {
-                        "rid": where_rid,
-                        "rtype": where_rtype
-                    }
-                }
-            ]
-        }
-
-    # Build full behaviour configuration
-    script_id = "67d9395b-4403-42cc-b5f0-740b699d67c6"  # Standard button control script
-
-    behaviour_config = {
-        "script_id": script_id,
-        "enabled": True,
-        "configuration": {
-            "device": {
-                "rid": device_id,
-                "rtype": "device"
-            },
-            "model_id": model_id,
-            "where": [
-                {
-                    "group": {
-                        "rid": where_rid,
-                        "rtype": where_rtype
-                    }
-                }
-            ],
-            "buttons": buttons_config
-        },
-        "metadata": {
-            "name": device_name
-        }
-    }
-
-    # Create the behaviour instance
-    click.echo(f"Creating initial behaviour instance for {device_name}...")
-    new_behaviour_id = controller.create_behaviour_instance(behaviour_config)
-
-    if new_behaviour_id:
-        click.secho(f"✓ Created initial behaviour instance", fg='green')
-        return new_behaviour_id
-    else:
-        click.secho(f"✗ Failed to create behaviour instance", fg='red')
-        return None

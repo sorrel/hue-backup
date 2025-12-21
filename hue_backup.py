@@ -77,9 +77,6 @@ from commands.mapping import (
 from commands.zone_programming import (
     program_zone_switch_command
 )
-from commands.init_switch import (
-    init_switch_command
-)
 
 # Disable SSL warnings for self-signed certificate
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -388,9 +385,6 @@ cli.add_command(program_button_command, name='program-button')
 
 # Zone programming commands
 cli.add_command(program_zone_switch_command, name='program-zone-switch')
-
-# Switch initialisation commands
-cli.add_command(init_switch_command, name='init-switch')
 
 
 if __name__ == '__main__':

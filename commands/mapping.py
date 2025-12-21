@@ -160,8 +160,8 @@ def monitor_command():
 @click.argument('switch_name')
 @click.argument('button_number', type=click.IntRange(1, 4))
 @click.option('--scenes', '-s', help='Comma-separated scene names for scene cycle (e.g., "Read,Concentrate,Relax")')
-@click.option('--time-based', is_flag=True, help='Enable time-based schedule mode')
-@click.option('--slot', multiple=True, help='Time slot: HH:MM=SceneName (requires --time-based, can be used multiple times)')
+@click.option('--time-based', is_flag=True, help='Enable time-based schedule mode (uses default schedule if --slot not specified)')
+@click.option('--slot', multiple=True, help='Time slot: HH:MM=SceneName (requires --time-based, can be used multiple times). Omit to use default schedule.')
 @click.option('--scene', help='Single scene to activate on button press')
 @click.option('--dim-up', is_flag=True, help='Configure button for dim up (hold/repeat action)')
 @click.option('--dim-down', is_flag=True, help='Configure button for dim down (hold/repeat action)')
@@ -189,9 +189,12 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
       uv run python hue_backup.py program-button "Office dimmer" 1 \\
         --scenes "Read,Concentrate,Relax"
 
-      # Time-based schedule
+      # Time-based schedule (custom slots)
       uv run python hue_backup.py program-button "Living dimmer" 1 --time-based \\
         --slot 07:00="Morning" --slot 17:00="Evening" --slot 23:00="Night"
+
+      # Time-based schedule (default: 07:00=Energise, 10:00=Concentrate, 17:00=Read, 20:00=Relax, 23:00=Nightlight)
+      uv run python hue_backup.py program-button "Living dimmer" 1 --time-based
 
       # Single scene
       uv run python hue_backup.py program-button "Bedroom dimmer" 4 \\
@@ -245,69 +248,35 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
         all_switches = get_all_switch_names(cache_controller)
 
         if not any(switch_name.lower() in s.lower() for s in all_switches):
-            # No programmed switches match - check if unprogrammed device exists
-            from models.button_config import create_initial_behaviour_for_device
+            # No programmed switches match
+            click.secho(f"✗ Switch '{switch_name}' not found", fg='red')
 
+            # Check if it exists as an unprogrammed device
             devices = cache_controller.get_devices()
             matching_devices = [
                 d for d in devices
                 if switch_name.lower() in d.get('metadata', {}).get('name', '').lower()
             ]
 
-            if len(matching_devices) == 1:
-                # Found unprogrammed device - create initial behaviour
-                device = matching_devices[0]
-                device_name = device.get('metadata', {}).get('name', '')
-
-                click.secho(f"\n⚠ '{device_name}' has not been programmed yet", fg='yellow')
-                click.echo("Creating initial behaviour instance...")
-                click.echo()
-
-                # Create a write controller for the initial behaviour
-                write_controller = HueController()
-                if not write_controller.connect():
-                    return
-
-                new_behaviour_id = create_initial_behaviour_for_device(device, write_controller)
-                if not new_behaviour_id:
-                    return  # Error already displayed
-
-                # Reload cache to get the new behaviour
-                click.echo("Reloading cache...")
-                cache_controller.reload_all_data()
-
-                # Try finding the switch again
-                result = find_switch_behaviour(switch_name, cache_controller)
-                if not result:
-                    click.secho("\n✗ Failed to find newly created behaviour", fg='red')
-                    return
-
-                click.echo()
-            elif len(matching_devices) > 1:
-                # Multiple unprogrammed devices match
-                click.secho(f"✗ Multiple devices match '{switch_name}':", fg='red')
-                for d in matching_devices:
-                    name = d.get('metadata', {}).get('name', '')
-                    click.secho(f"  • {name}", fg='yellow')
-                click.echo("\nPlease be more specific.")
+            if matching_devices:
+                device_name = matching_devices[0].get('metadata', {}).get('name', '')
+                click.echo(f"\n'{device_name}' exists but hasn't been programmed yet.")
+                click.echo("Please use the Hue app to set up initial button configuration, then use this tool to modify it.")
                 return
+
+            # No unprogrammed device either - show similar switches
+            similar = find_similar_strings(switch_name, all_switches, limit=3)
+            if similar:
+                click.echo("\nDid you mean one of these?")
+                for name in similar:
+                    click.secho(f"  • {name}", fg='green')
             else:
-                # No matches at all
-                click.secho(f"✗ Switch '{switch_name}' not found", fg='red')
-
-                # Show similar switches
-                similar = find_similar_strings(switch_name, all_switches, limit=3)
-                if similar:
-                    click.echo("\nDid you mean one of these?")
-                    for name in similar:
-                        click.secho(f"  • {name}", fg='green')
-                else:
-                    click.echo("\nAvailable switches:")
-                    for name in all_switches[:10]:
-                        click.secho(f"  • {name}", fg='green')
-                    if len(all_switches) > 10:
-                        click.echo(f"  ... and {len(all_switches) - 10} more")
-                return
+                click.echo("\nAvailable switches:")
+                for name in all_switches[:10]:
+                    click.secho(f"  • {name}", fg='green')
+                if len(all_switches) > 10:
+                    click.echo(f"  ... and {len(all_switches) - 10} more")
+            return
         else:
             # Multiple programmed switches match
             matches = [s for s in all_switches if switch_name.lower() in s.lower()]
@@ -343,8 +312,13 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
 
     elif time_based:
         # Time-based schedule
+        from models.button_config import DEFAULT_TIME_SLOTS
+
+        # Use default slots if none specified
+        slots_to_use = slot if slot else DEFAULT_TIME_SLOTS
+
         time_slots_parsed = []
-        for slot_str in slot:
+        for slot_str in slots_to_use:
             try:
                 hour, minute, scene_name = parse_time_slot(slot_str)
                 time_slots_parsed.append((hour, minute, scene_name))
@@ -367,7 +341,10 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
         ]
 
         button_config.update(build_time_based_config(time_slots_with_ids))
-        short_press_desc = f"Time-based schedule ({len(time_slots_with_ids)} slots)"
+        if slot:
+            short_press_desc = f"Time-based schedule ({len(time_slots_with_ids)} slots)"
+        else:
+            short_press_desc = f"Time-based schedule (default: {len(time_slots_with_ids)} slots)"
 
     elif scene:
         # Single scene
