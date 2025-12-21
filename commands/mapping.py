@@ -160,8 +160,8 @@ def monitor_command():
 @click.argument('switch_name')
 @click.argument('button_number', type=click.IntRange(1, 4))
 @click.option('--scenes', '-s', help='Comma-separated scene names for scene cycle (e.g., "Read,Concentrate,Relax")')
-@click.option('--time-based', is_flag=True, help='Enable time-based schedule mode')
-@click.option('--slot', multiple=True, help='Time slot: HH:MM=SceneName (requires --time-based, can be used multiple times)')
+@click.option('--time-based', is_flag=True, help='Enable time-based schedule mode (uses default schedule if --slot not specified)')
+@click.option('--slot', multiple=True, help='Time slot: HH:MM=SceneName (requires --time-based, can be used multiple times). Omit to use default schedule.')
 @click.option('--scene', help='Single scene to activate on button press')
 @click.option('--dim-up', is_flag=True, help='Configure button for dim up (hold/repeat action)')
 @click.option('--dim-down', is_flag=True, help='Configure button for dim down (hold/repeat action)')
@@ -189,9 +189,12 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
       uv run python hue_backup.py program-button "Office dimmer" 1 \\
         --scenes "Read,Concentrate,Relax"
 
-      # Time-based schedule
+      # Time-based schedule (custom slots)
       uv run python hue_backup.py program-button "Living dimmer" 1 --time-based \\
         --slot 07:00="Morning" --slot 17:00="Evening" --slot 23:00="Night"
+
+      # Time-based schedule (default: 07:00=Energise, 10:00=Concentrate, 17:00=Read, 20:00=Relax, 23:00=Nightlight)
+      uv run python hue_backup.py program-button "Living dimmer" 1 --time-based
 
       # Single scene
       uv run python hue_backup.py program-button "Bedroom dimmer" 4 \\
@@ -343,8 +346,13 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
 
     elif time_based:
         # Time-based schedule
+        from models.button_config import DEFAULT_TIME_SLOTS
+
+        # Use default slots if none specified
+        slots_to_use = slot if slot else DEFAULT_TIME_SLOTS
+
         time_slots_parsed = []
-        for slot_str in slot:
+        for slot_str in slots_to_use:
             try:
                 hour, minute, scene_name = parse_time_slot(slot_str)
                 time_slots_parsed.append((hour, minute, scene_name))
@@ -367,7 +375,10 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
         ]
 
         button_config.update(build_time_based_config(time_slots_with_ids))
-        short_press_desc = f"Time-based schedule ({len(time_slots_with_ids)} slots)"
+        if slot:
+            short_press_desc = f"Time-based schedule ({len(time_slots_with_ids)} slots)"
+        else:
+            short_press_desc = f"Time-based schedule (default: {len(time_slots_with_ids)} slots)"
 
     elif scene:
         # Single scene

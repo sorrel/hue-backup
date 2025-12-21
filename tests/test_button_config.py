@@ -10,7 +10,46 @@ from models.button_config import (
     build_dimming_config,
     build_long_press_config,
     find_button_rid_for_control_id,
+    DEFAULT_TIME_SLOTS,
 )
+
+
+class TestDefaultTimeSlots:
+    """Test default time-based schedule constant."""
+
+    def test_default_slots_exist(self):
+        """Default time slots should be defined."""
+        assert DEFAULT_TIME_SLOTS is not None
+        assert isinstance(DEFAULT_TIME_SLOTS, list)
+        assert len(DEFAULT_TIME_SLOTS) > 0
+
+    def test_default_slots_format(self):
+        """Default time slots should be in correct format."""
+        assert len(DEFAULT_TIME_SLOTS) == 5
+        expected = [
+            "07:00=Energise",
+            "10:00=Concentrate",
+            "17:00=Read",
+            "20:00=Relax",
+            "23:00=Nightlight"
+        ]
+        assert DEFAULT_TIME_SLOTS == expected
+
+    def test_default_slots_parseable(self):
+        """Default time slots should all be parseable."""
+        for slot_str in DEFAULT_TIME_SLOTS:
+            hour, minute, scene_name = parse_time_slot(slot_str)
+            assert 0 <= hour <= 23
+            assert 0 <= minute <= 59
+            assert len(scene_name) > 0
+
+    def test_default_slots_chronological_order(self):
+        """Default time slots should be in chronological order."""
+        parsed_times = [parse_time_slot(s) for s in DEFAULT_TIME_SLOTS]
+        for i in range(len(parsed_times) - 1):
+            current_time = parsed_times[i][0] * 60 + parsed_times[i][1]
+            next_time = parsed_times[i + 1][0] * 60 + parsed_times[i + 1][1]
+            assert current_time < next_time, "Default slots should be in chronological order"
 
 
 class TestParseTimeSlot:
@@ -110,13 +149,13 @@ class TestValidateProgramButtonArgs:
         assert "Cannot specify multiple short-press actions" in msg
 
     def test_time_based_without_slots(self):
-        """Time-based without slots should fail validation."""
+        """Time-based without slots should pass validation (uses default)."""
         is_valid, msg = validate_program_button_args(
             button_number=1, scenes=None, time_based=True, slot=(), scene=None,
             dim_up=False, dim_down=False, long_press=None
         )
-        assert not is_valid
-        assert "--time-based requires at least one --slot" in msg
+        assert is_valid
+        assert msg is None
 
     def test_slots_without_time_based(self):
         """Slots without time-based flag should fail validation."""

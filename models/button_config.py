@@ -14,6 +14,18 @@ import copy
 from models.types import SwitchBehaviour
 
 
+# ===== Default Time-Based Schedule =====
+
+# Default schedule from Office Dimmer button 1 (used when --time-based specified without --slot)
+DEFAULT_TIME_SLOTS = [
+    "07:00=Energise",
+    "10:00=Concentrate",
+    "17:00=Read",
+    "20:00=Relax",
+    "23:00=Nightlight"
+]
+
+
 # ===== Switch & Button Lookup =====
 
 def find_switch_behaviour(switch_name: str, controller) -> SwitchBehaviour | None:
@@ -464,8 +476,7 @@ def validate_program_button_args(button_number, scenes, time_based, slot, scene,
     if slot and not time_based:
         return False, "--slot requires --time-based flag"
 
-    if time_based and not slot:
-        return False, "--time-based requires at least one --slot HH:MM=SceneName"
+    # Note: --time-based without --slot is now allowed (uses default schedule)
 
     # Check for dim up/down conflict
     if dim_up and dim_down:
