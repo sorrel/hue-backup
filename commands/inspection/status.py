@@ -362,9 +362,13 @@ def scenes_command(auto_reload: bool):
             click.echo("No scenes found.")
             return
 
-        # Get rooms for display
+        # Get rooms and zones for display
         rooms_list = cache_controller.get_rooms()
+        zones_list = cache_controller.get_zones()
+        # Combine room and zone lookups since scenes can belong to either
         room_lookup = create_name_lookup(rooms_list)
+        zone_lookup = create_name_lookup(zones_list)
+        group_lookup = {**room_lookup, **zone_lookup}
 
         # Build list of scene items
         scene_items = []
@@ -372,7 +376,7 @@ def scenes_command(auto_reload: bool):
             name = scene.get('metadata', {}).get('name', 'Unnamed')
             actions = scene.get('actions', [])
             room_rid = scene.get('group', {}).get('rid')
-            room_name = room_lookup.get(room_rid, 'N/A')
+            room_name = group_lookup.get(room_rid, 'N/A')
 
             scene_items.append({
                 'name': name,
@@ -393,11 +397,11 @@ def scenes_command(auto_reload: bool):
 
         # Ensure minimum widths for headers
         col_name = max(col_name, len("Scene Name"))
-        col_room = max(col_room, len("Room"))
+        col_room = max(col_room, len("Room/Zone"))
         col_lights = max(col_lights, len("Lights"))
 
         # Print header
-        header = f"  {'Scene Name':<{col_name}}  {'Room':<{col_room}}  {'Lights':>{col_lights}}"
+        header = f"  {'Scene Name':<{col_name}}  {'Room/Zone':<{col_room}}  {'Lights':>{col_lights}}"
         click.echo(click.style(header, fg='white', bold=True))
         click.echo(click.style("  " + "─" * (col_name + col_room + col_lights + 4), fg='white', dim=True))
 

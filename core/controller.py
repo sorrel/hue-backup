@@ -224,6 +224,13 @@ class HueController:
             return result
         except Exception as e:
             click.echo(f"API request error: {e}")
+            # Show response body for debugging
+            try:
+                if hasattr(e, 'response') and e.response is not None:
+                    error_body = e.response.text
+                    click.echo(f"Response body: {error_body}", err=True)
+            except:
+                pass
             return None
 
     def connect(self, interactive: bool = True) -> bool:
@@ -742,6 +749,62 @@ class HueController:
             updated_scene = self._request('GET', f'/resource/scene/{scene_id}')
             if updated_scene and len(updated_scene) > 0:
                 self._update_cache_entry('scenes', scene_id, updated_scene[0])
+
+        return result is not None
+
+    def create_scene(self, name: str, group_rid: str, actions: list[dict],
+                     auto_dynamic: bool = True, speed: float = 0.6) -> str | None:
+        """Create a new scene (write-through cache).
+
+        Args:
+            name: Scene name
+            group_rid: Zone or room resource ID
+            actions: List of light actions [{"target": {"rid": "..."}, "action": {...}}]
+            auto_dynamic: Enable auto-dynamic palette cycling (default: True)
+            speed: Dynamic effect speed 0.0 - 1.0 (default: 0.6)
+
+        Returns:
+            New scene ID if successful, None if failed
+        """
+        # Build scene data structure
+        scene_data = {
+            "metadata": {"name": name},
+            "group": {"rid": group_rid, "rtype": "zone"},  # Can be zone or room
+            "actions": actions,
+            "auto_dynamic": auto_dynamic,
+            "speed": speed,
+        }
+
+        # Make the API call to create the scene
+        result = self._request('POST', '/resource/scene', scene_data)
+
+        if result and len(result) > 0:
+            new_scene_id = result[0].get('rid')
+
+            # Add to cache if enabled
+            if new_scene_id and self.use_cache:
+                # Fetch the complete scene data
+                scene_details = self._request('GET', f'/resource/scene/{new_scene_id}')
+                if scene_details and len(scene_details) > 0:
+                    self._add_cache_entry('scenes', scene_details[0])
+
+            return new_scene_id
+
+        return None
+
+    def delete_scene(self, scene_id: str) -> bool:
+        """Delete a scene (write-through cache).
+
+        Args:
+            scene_id: Scene ID to delete
+
+        Returns:
+            True if successful, False otherwise
+        """
+        result = self._request('DELETE', f'/resource/scene/{scene_id}')
+
+        if result is not None and self.use_cache:
+            self._remove_cache_entry('scenes', scene_id)
 
         return result is not None
 

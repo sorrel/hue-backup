@@ -127,7 +127,7 @@ def activate_scene_command(scene_id: str):
 
 
 @click.command()
-@click.option('--room', '-r', help='Filter by room name (case-insensitive substring match)')
+@click.option('--room', '-r', help='Filter by room or zone name (case-insensitive substring match)')
 @click.option('--set', type=click.Choice(['on', 'off']), help='Set auto-dynamic on/off for matching scenes')
 @click.option('--scene', '-s', help='Filter by scene name (case-insensitive substring match)')
 @click.option('--yes', '-y', is_flag=True, help='Skip confirmation prompt')
@@ -166,14 +166,18 @@ def auto_dynamic_command(room: str, set: str, scene: str, yes: bool, auto_reload
             return
 
         rooms_list = cache_controller.get_rooms()
+        zones_list = cache_controller.get_zones()
+        # Combine room and zone lookups since scenes can belong to either
         room_lookup = {r['id']: r.get('metadata', {}).get('name', 'Unknown') for r in rooms_list}
+        zone_lookup = {z['id']: z.get('metadata', {}).get('name', 'Unknown') for z in zones_list}
+        group_lookup = {**room_lookup, **zone_lookup}
 
         # Filter scenes by room and/or scene name
         filtered_scenes = []
         for s in scenes_list:
             scene_name = s.get('metadata', {}).get('name', 'Unknown')
             room_rid = s.get('group', {}).get('rid')
-            room_name = room_lookup.get(room_rid, 'Unknown Room')
+            room_name = group_lookup.get(room_rid, 'Unknown Room')
 
             # Apply filters
             if room and room.lower() not in room_name.lower():

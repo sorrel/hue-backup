@@ -237,8 +237,8 @@ def help_command():
             ]
         ),
         CommandSection(
-            name="DISCOVERY & MAPPING",
-            icon="🔍",
+            name="PROGRAMMING",
+            icon="🛠️",
             commands=[
                 ("discover", "Press buttons to see event codes"),
                 ("map <sensor> <btn> <scene>", "Create button → scene mapping"),

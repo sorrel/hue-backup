@@ -9,7 +9,7 @@ from models.utils import create_name_lookup, get_cache_controller
 
 
 @click.command()
-@click.option('--room', '-r', help='Filter scenes by room name')
+@click.option('--room', '-r', help='Filter scenes by room or zone name')
 @click.option('--auto-reload/--no-auto-reload', default=True, help='Auto-reload stale cache (default: yes)')
 def scene_details_command(room: str, auto_reload: bool):
     """Show detailed scene information from cache.
@@ -33,44 +33,48 @@ def scene_details_command(room: str, auto_reload: bool):
         click.echo("No scenes found in cache. Run 'reload' to fetch data.")
         return
 
-    # Get rooms and lights for lookups
+    # Get rooms, zones, and lights for lookups
     rooms_list = cache_controller.get_rooms()
+    zones_list = cache_controller.get_zones()
     lights_list = cache_controller.get_lights()
 
-    # Create lookups
+    # Create lookups - combine rooms and zones since scenes can belong to either
     room_lookup = create_name_lookup(rooms_list)
+    zone_lookup = create_name_lookup(zones_list)
+    # Combined lookup for scene groups (which can be rooms or zones)
+    group_lookup = {**room_lookup, **zone_lookup}
     light_lookup = create_name_lookup(lights_list)
 
     # Get scene-to-switch mapping
     scene_mapping = cache_controller.get_scene_to_switch_mapping()
 
-    # Filter by room if specified
+    # Filter by room/zone if specified
     if room:
         room_lower = room.lower()
         filtered_scenes = []
         for scene in scenes:
-            scene_room_rid = scene.get('group', {}).get('rid')
-            scene_room_name = room_lookup.get(scene_room_rid, '')
-            if room_lower in scene_room_name.lower():
+            scene_group_rid = scene.get('group', {}).get('rid')
+            scene_group_name = group_lookup.get(scene_group_rid, '')
+            if room_lower in scene_group_name.lower():
                 filtered_scenes.append(scene)
         scenes = filtered_scenes
 
     if not scenes:
-        click.echo(f"No scenes found matching room '{room}'")
+        click.echo(f"No scenes found matching room/zone '{room}'")
         return
 
     click.echo()
     click.secho(f"=== Scene Details ({len(scenes)} scenes) ===", fg='cyan', bold=True)
     if room:
-        click.echo(f"Filtered by room: {room}")
+        click.echo(f"Filtered by room/zone: {room}")
     click.echo()
 
     for scene in scenes:
         scene_name = scene.get('metadata', {}).get('name', 'Unnamed')
-        scene_room_rid = scene.get('group', {}).get('rid')
-        scene_room = room_lookup.get(scene_room_rid, 'Unknown')
+        scene_group_rid = scene.get('group', {}).get('rid')
+        scene_group = group_lookup.get(scene_group_rid, 'Unknown')
 
-        click.secho(f"{scene_name} [{scene_room}]", fg='green', bold=True)
+        click.secho(f"{scene_name} [{scene_group}]", fg='green', bold=True)
         scene_id = scene.get('id', 'Unknown')
         click.echo(f"  ID: {scene_id[:8]}...")
 
