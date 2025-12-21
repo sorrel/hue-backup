@@ -142,6 +142,40 @@ restore-room "Living"
 
 All room commands accept either full file path or room name excerpt (finds most recent backup automatically).
 
+### Scene Duplication
+
+Create variations of scenes with modifications - useful for creating button-specific scene sets:
+
+```bash
+# Duplicate a scene with one light turned off
+duplicate-scene "Reading" "Reading no lamp" --turn-off "Lamp lounge" -y
+
+# Multiple modifications
+duplicate-scene "Relax" "Relax dimmed" \
+  --turn-off "Back lights" \
+  --brightness "Main light=50%"
+
+# Remove a light entirely
+duplicate-scene "Christmas" "Christmas minimal" --remove-light "Tree lights"
+
+# Turn a light on (add to scene if not present)
+duplicate-scene "Evening" "Evening bright" --turn-on "Desk lamp"
+```
+
+**Common workflow:**
+1. Check scenes on a button: `button-data -r "office"`
+2. Duplicate all scenes with modifications (e.g., turn off one light for each)
+3. Programme new scenes onto a different button: `program-button "Office dimmer" 4 --scenes "Scene1 no lamp,Scene2 no lamp,Scene3 no lamp"`
+
+**Options:**
+- `--turn-on LIGHT` - Turn specific light ON
+- `--turn-off LIGHT` - Turn specific light OFF
+- `--brightness "LIGHT=50%"` - Change brightness (0-100%)
+- `--remove-light LIGHT` - Remove light entirely from scene
+- `-y` - Skip confirmation
+
+All modifications support fuzzy matching for light names. The new scene is created in the same room/zone as the original with all other settings preserved (auto-dynamic, speed, colours, etc.).
+
 ### Cache Management
 
 ```bash
