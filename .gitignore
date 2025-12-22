@@ -41,7 +41,11 @@ wheels/
 .DS_Store
 
 # Cache directory (contains bridge data and button mappings)
-cache/
+# .nosync suffix prevents iCloud from syncing this directory
+cache.nosync/
+
+# Saved room backups (personal data, synced via iCloud but not git)
+saved-rooms/
 
 # User authentication config directory (contains bridge IP and API token)
 .hue_backup/
