@@ -197,6 +197,10 @@ def button_data_command(room: str, auto_reload: bool):
         rooms_response = cache_controller.get_rooms()
         rooms = create_name_lookup(rooms_response)
 
+        # Get zones for button zone display
+        zones_response = cache_controller.get_zones()
+        zones = create_name_lookup(zones_response)
+
         # Create scene lookup by id
         scene_lookup = create_name_lookup(scenes)
 
@@ -284,6 +288,23 @@ def button_data_command(room: str, auto_reload: bool):
                 button_display = f"Button {control_id}"
                 if button_label:
                     button_display += f" ({button_label})"
+
+                # Extract zone/room from button's 'where' field
+                button_zone = None
+                if 'where' in button_config:
+                    where_list = button_config['where']
+                    if where_list and len(where_list) > 0:
+                        group_info = where_list[0].get('group', {})
+                        zone_rid = group_info.get('rid')
+                        zone_rtype = group_info.get('rtype')
+                        if zone_rid:
+                            if zone_rtype == 'zone':
+                                button_zone = zones.get(zone_rid, zone_rid[:8])
+                            elif zone_rtype == 'room':
+                                button_zone = rooms.get(zone_rid, zone_rid[:8])
+
+                if button_zone:
+                    button_display += f" [{button_zone}]"
 
                 click.secho(f"\n  {button_display}:", fg='green', bold=True)
 
