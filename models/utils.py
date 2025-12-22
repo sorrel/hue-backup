@@ -4,6 +4,7 @@ This module contains helper functions used across the application:
 - display_width: Calculate terminal display width for Unicode/emojis
 - decode_button_event: Convert button event codes to human-readable format
 - create_name_lookup: Build ID-to-name mappings for resources
+- get_controller: Helper to create fresh connected controllers
 - get_cache_controller: Helper to create cache-enabled controllers
 - similarity_score: Canonical fuzzy string matching algorithm
 - find_similar_strings: Find similar strings using fuzzy matching
@@ -108,6 +109,26 @@ def create_name_lookup(resources: list[dict]) -> dict[str, str]:
         Dict mapping resource ID to name
     """
     return {r['id']: r.get('metadata', {}).get('name', 'Unknown') for r in resources}
+
+
+def get_controller():
+    """Get a fresh controller instance (no cache).
+
+    This helper reduces boilerplate in write/control commands.
+
+    Returns:
+        A connected HueController, or None if connection failed
+    """
+    # Import here to avoid circular dependency
+    import sys
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+    from hue_backup import HueController
+
+    ctrl = HueController()
+    if not ctrl.connect():
+        return None
+    return ctrl
 
 
 def get_cache_controller(auto_reload: bool = True):

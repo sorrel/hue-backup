@@ -6,7 +6,7 @@ Includes power, brightness, colour, scene activation, and auto-dynamic control.
 
 import click
 from core.controller import HueController
-from models.utils import get_cache_controller, create_name_lookup
+from models.utils import get_controller, get_cache_controller, create_name_lookup
 
 
 @click.command()
@@ -20,8 +20,8 @@ def power_command(light_name: str, on: bool):
       uv run python hue_backup.py power "Bedroom" --on
       uv run python hue_backup.py power "Bedroom" --off
     """
-    controller = HueController()
-    if not controller.connect():
+    controller = get_controller()
+    if not controller:
         return
 
     light = controller.get_light_by_name(light_name)
@@ -49,8 +49,8 @@ def brightness_command(light_name: str, brightness: int):
       uv run python hue_backup.py brightness "Bedroom" 200
       uv run python hue_backup.py brightness "Bedroom" 50
     """
-    controller = HueController()
-    if not controller.connect():
+    controller = get_controller()
+    if not controller:
         return
 
     light = controller.get_light_by_name(light_name)
@@ -80,8 +80,8 @@ def colour_command(light_name: str, hue: int | None, sat: int | None, ct: int | 
       uv run python hue_backup.py colour "Bedroom" --ct 300
       uv run python hue_backup.py colour "Bedroom" -t 400
     """
-    controller = HueController()
-    if not controller.connect():
+    controller = get_controller()
+    if not controller:
         return
 
     light = controller.get_light_by_name(light_name)
@@ -116,8 +116,8 @@ def colour_command(light_name: str, hue: int | None, sat: int | None, ct: int | 
 @click.argument('scene_id')
 def activate_scene_command(scene_id: str):
     """Activate a scene by its ID."""
-    controller = HueController()
-    if not controller.connect():
+    controller = get_controller()
+    if not controller:
         return
 
     if controller.activate_scene(scene_id):

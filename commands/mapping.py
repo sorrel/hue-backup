@@ -7,6 +7,7 @@ These commands manage local button-to-scene mappings configured in this CLI tool
 import click
 import time
 from core.controller import HueController
+from models.utils import get_controller
 
 
 @click.command()
@@ -27,8 +28,8 @@ def map_command(sensor_id: str, button_event: int, scene_id: str):
       - Use 'discover' to find button event codes
       - Use 'scenes' to see scene IDs
     """
-    controller = HueController()
-    if not controller.connect():
+    controller = get_controller()
+    if not controller:
         return
 
     # Verify sensor exists
@@ -63,8 +64,8 @@ def map_command(sensor_id: str, button_event: int, scene_id: str):
 @click.command()
 def mappings_command():
     """List all current button-to-scene mappings."""
-    controller = HueController()
-    if not controller.connect():
+    controller = get_controller()
+    if not controller:
         return
 
     if not controller.button_mappings:
@@ -96,8 +97,8 @@ def discover_command():
     This helps you find out which button event codes are generated
     when you press different buttons on your switches.
     """
-    controller = HueController()
-    if not controller.connect():
+    controller = get_controller()
+    if not controller:
         return
 
     click.echo("Press buttons on your switches to see their event codes...\n")
@@ -118,8 +119,8 @@ def monitor_command():
     This is the main runtime command that watches for button presses
     and triggers the scenes you've configured with the 'map' command.
     """
-    controller = HueController()
-    if not controller.connect():
+    controller = get_controller()
+    if not controller:
         return
 
     if not controller.button_mappings:
