@@ -37,6 +37,11 @@ def locations_command(lights, scenes, room):
     if not controller.connect():
         return
 
+    # Ensure cache is fresh (auto-reload if stale)
+    if not controller.ensure_fresh_cache():
+        click.echo("Failed to ensure fresh cache.")
+        return
+
     # Get all data
     rooms = controller.get_rooms()
     zones = controller.get_zones()
