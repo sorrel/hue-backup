@@ -464,7 +464,7 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
             return
 
     # 7. Update behaviour instance with write-through cache
-    write_controller = HueController()  # Non-cache for writes
+    write_controller = HueController(use_cache=True)  # Enable cache for write-through updates
     if not write_controller.connect():
         return
 
