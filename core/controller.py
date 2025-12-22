@@ -753,7 +753,7 @@ class HueController:
         return result is not None
 
     def create_scene(self, name: str, group_rid: str, actions: list[dict],
-                     auto_dynamic: bool = True, speed: float = 0.6) -> str | None:
+                     auto_dynamic: bool = True, speed: float = 0.6, group_rtype: str = "zone") -> str | None:
         """Create a new scene (write-through cache).
 
         Args:
@@ -762,6 +762,7 @@ class HueController:
             actions: List of light actions [{"target": {"rid": "..."}, "action": {...}}]
             auto_dynamic: Enable auto-dynamic palette cycling (default: True)
             speed: Dynamic effect speed 0.0 - 1.0 (default: 0.6)
+            group_rtype: Group type - 'zone' or 'room' (default: 'zone')
 
         Returns:
             New scene ID if successful, None if failed
@@ -769,7 +770,7 @@ class HueController:
         # Build scene data structure
         scene_data = {
             "metadata": {"name": name},
-            "group": {"rid": group_rid, "rtype": "zone"},  # Can be zone or room
+            "group": {"rid": group_rid, "rtype": group_rtype},
             "actions": actions,
             "auto_dynamic": auto_dynamic,
             "speed": speed,

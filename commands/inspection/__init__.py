@@ -9,10 +9,14 @@ Structure:
 - status.py: Status and overview commands (3 commands)
 - devices.py: Device listing commands (4 commands)
 - switches.py: Switch inspection commands (6 commands)
+- locations.py: Location (rooms/zones) inspection with lights and scenes (1 command)
 """
 
 # Scene commands
 from .scenes import scene_details_command
+
+# Location commands
+from .locations import locations_command
 
 # Status commands
 from .status import (
@@ -68,6 +72,9 @@ __all__ = [
 
     # Scene commands
     'scene_details_command',
+
+    # Location commands
+    'locations_command',
 
     # Status commands
     'status_command',

@@ -29,6 +29,10 @@ def reload_cache(controller: 'HueController') -> bool:
 
     click.echo("Fetching data from Hue Bridge...")
 
+    # Delete persistent cache file to ensure completely fresh fetch
+    if CONFIG_FILE.exists():
+        CONFIG_FILE.unlink()
+
     # Clear memory caches to force fresh fetches
     controller._lights_cache = None
     controller._rooms_cache = None

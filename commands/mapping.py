@@ -292,7 +292,51 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
     device = result['device']
     instance_id = behaviour['id']
 
-    # 5. Build button configuration based on action type
+    # 5. Resolve zone/room if --where is specified (for any button type)
+    where_rid, where_rtype, where_name = None, None, None
+    if where:
+        # Try zones first - prefer exact matches
+        zones = cache_controller.get_zones()
+        exact_match = None
+        substring_match = None
+
+        for zone in zones:
+            zone_name = zone.get('metadata', {}).get('name', '')
+            if where.lower() == zone_name.lower():
+                exact_match = (zone['id'], 'zone', zone_name)
+                break
+            elif where.lower() in zone_name.lower() and not substring_match:
+                substring_match = (zone['id'], 'zone', zone_name)
+
+        if exact_match:
+            where_rid, where_rtype, where_name = exact_match
+        elif substring_match:
+            where_rid, where_rtype, where_name = substring_match
+
+        # Try rooms if no zone match
+        if not where_rid:
+            rooms = cache_controller.get_rooms()
+            exact_match = None
+            substring_match = None
+
+            for room in rooms:
+                room_name = room.get('metadata', {}).get('name', '')
+                if where.lower() == room_name.lower():
+                    exact_match = (room['id'], 'room', room_name)
+                    break
+                elif where.lower() in room_name.lower() and not substring_match:
+                    substring_match = (room['id'], 'room', room_name)
+
+            if exact_match:
+                where_rid, where_rtype, where_name = exact_match
+            elif substring_match:
+                where_rid, where_rtype, where_name = substring_match
+
+        if not where_rid:
+            click.secho(f"✗ Zone/room '{where}' not found", fg='red')
+            return
+
+    # 6. Build button configuration based on action type
     button_config = {}
     short_press_desc = None
     long_press_desc = None
@@ -355,99 +399,22 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
         button_config.update(build_single_scene_config(scene_ids[0]))
         short_press_desc = f"Activate scene: {scene}"
 
-    elif dim_up:
-        # Resolve zone/room for dimming if specified
-        where_rid, where_rtype, where_name = None, None, None
-        if where:
-            # Try zones first - prefer exact matches
-            zones = cache_controller.get_zones()
-            exact_match = None
-            substring_match = None
+    # Apply --where zone/room to button config (for non-dimming actions)
+    if where_rid and not (dim_up or dim_down):
+        button_config['where'] = [{
+            'group': {
+                'rid': where_rid,
+                'rtype': where_rtype
+            }
+        }]
 
-            for zone in zones:
-                zone_name = zone.get('metadata', {}).get('name', '')
-                if where.lower() == zone_name.lower():
-                    exact_match = (zone['id'], 'zone', zone_name)
-                    break
-                elif where.lower() in zone_name.lower() and not substring_match:
-                    substring_match = (zone['id'], 'zone', zone_name)
-
-            if exact_match:
-                where_rid, where_rtype, where_name = exact_match
-            elif substring_match:
-                where_rid, where_rtype, where_name = substring_match
-
-            # Try rooms if not found in zones
-            if not where_rid:
-                rooms = cache_controller.get_rooms()
-                exact_match = None
-                substring_match = None
-
-                for room in rooms:
-                    room_name = room.get('metadata', {}).get('name', '')
-                    if where.lower() == room_name.lower():
-                        exact_match = (room['id'], 'room', room_name)
-                        break
-                    elif where.lower() in room_name.lower() and not substring_match:
-                        substring_match = (room['id'], 'room', room_name)
-
-                if exact_match:
-                    where_rid, where_rtype, where_name = exact_match
-                elif substring_match:
-                    where_rid, where_rtype, where_name = substring_match
-
-            if not where_rid:
-                click.secho(f"✗ Zone/room '{where}' not found", fg='red')
-                return
-
+    if dim_up:
+        # Dimming actions use where_rid/where_rtype already resolved
         button_config.update(build_dimming_config('dim_up', where_rid, where_rtype))
         short_press_desc = f"Dim up (hold to brighten){f' - {where_name}' if where_name else ''}"
 
     elif dim_down:
-        # Resolve zone/room for dimming if specified
-        where_rid, where_rtype, where_name = None, None, None
-        if where:
-            # Try zones first - prefer exact matches
-            zones = cache_controller.get_zones()
-            exact_match = None
-            substring_match = None
-
-            for zone in zones:
-                zone_name = zone.get('metadata', {}).get('name', '')
-                if where.lower() == zone_name.lower():
-                    exact_match = (zone['id'], 'zone', zone_name)
-                    break
-                elif where.lower() in zone_name.lower() and not substring_match:
-                    substring_match = (zone['id'], 'zone', zone_name)
-
-            if exact_match:
-                where_rid, where_rtype, where_name = exact_match
-            elif substring_match:
-                where_rid, where_rtype, where_name = substring_match
-
-            # Try rooms if not found in zones
-            if not where_rid:
-                rooms = cache_controller.get_rooms()
-                exact_match = None
-                substring_match = None
-
-                for room in rooms:
-                    room_name = room.get('metadata', {}).get('name', '')
-                    if where.lower() == room_name.lower():
-                        exact_match = (room['id'], 'room', room_name)
-                        break
-                    elif where.lower() in room_name.lower() and not substring_match:
-                        substring_match = (room['id'], 'room', room_name)
-
-                if exact_match:
-                    where_rid, where_rtype, where_name = exact_match
-                elif substring_match:
-                    where_rid, where_rtype, where_name = substring_match
-
-            if not where_rid:
-                click.secho(f"✗ Zone/room '{where}' not found", fg='red')
-                return
-
+        # Dimming actions use where_rid/where_rtype already resolved
         button_config.update(build_dimming_config('dim_down', where_rid, where_rtype))
         short_press_desc = f"Dim down (hold to dim){f' - {where_name}' if where_name else ''}"
 

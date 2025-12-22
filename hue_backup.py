@@ -45,6 +45,7 @@ from commands.cache import reload_command, cache_info_command
 from commands.room import save_room_command, diff_room_command, restore_room_command
 from commands.inspection import (
     scene_details_command,
+    locations_command,
     status_command,
     groups_command,
     zones_command,
@@ -76,6 +77,9 @@ from commands.mapping import (
 )
 from commands.zone_programming import (
     program_zone_switch_command
+)
+from commands.scene_management import (
+    duplicate_scene_command
 )
 
 # Disable SSL warnings for self-signed certificate
@@ -354,6 +358,7 @@ cli.add_command(restore_room_command)
 
 # Register inspection commands
 cli.add_command(scene_details_command, name='scene-details')
+cli.add_command(locations_command, name='locations')
 cli.add_command(status_command, name='status')
 cli.add_command(groups_command, name='groups')
 cli.add_command(zones_command, name='zones')
@@ -385,6 +390,9 @@ cli.add_command(program_button_command, name='program-button')
 
 # Zone programming commands
 cli.add_command(program_zone_switch_command, name='program-zone-switch')
+
+# Scene management commands
+cli.add_command(duplicate_scene_command, name='duplicate-scene')
 
 
 if __name__ == '__main__':

@@ -5,6 +5,8 @@ This module contains helper functions used across the application:
 - decode_button_event: Convert button event codes to human-readable format
 - create_name_lookup: Build ID-to-name mappings for resources
 - get_cache_controller: Helper to create cache-enabled controllers
+- similarity_score: Canonical fuzzy string matching algorithm
+- find_similar_strings: Find similar strings using fuzzy matching
 """
 
 import click
@@ -150,10 +152,62 @@ def create_scene_reverse_lookup(scenes: list[dict]) -> dict[str, str]:
     }
 
 
+def similarity_score(s1: str, s2: str) -> int:
+    """Calculate similarity score between two strings.
+
+    This is the canonical implementation used throughout the application
+    for fuzzy matching (command typo suggestions, room/zone name matching, etc.).
+
+    Args:
+        s1: First string to compare
+        s2: Second string to compare
+
+    Returns:
+        Similarity score:
+        - 100: Exact match (case-insensitive)
+        - 80: Prefix match
+        - 60: Substring match
+        - 0-50: Character sequence match (proportional to matching characters)
+        - 0: No match
+    """
+    s1_lower = s1.lower()
+    s2_lower = s2.lower()
+
+    # Exact match
+    if s1_lower == s2_lower:
+        return 100
+
+    # Prefix match
+    if s2_lower.startswith(s1_lower) or s1_lower.startswith(s2_lower):
+        return 80
+
+    # Contains match
+    if s1_lower in s2_lower or s2_lower in s1_lower:
+        return 60
+
+    # Character sequence matching
+    matches = 0
+    j = 0
+    for i, char in enumerate(s1_lower):
+        while j < len(s2_lower):
+            if s2_lower[j] == char:
+                matches += 1
+                j += 1
+                break
+            j += 1
+
+    if matches > 0:
+        score = int((matches / max(len(s1_lower), len(s2_lower))) * 50)
+        return score if score > 20 else 0
+
+    return 0
+
+
 def find_similar_strings(target: str, candidates: list[str], limit: int = 5) -> list[str]:
     """Find similar strings using simple similarity scoring.
 
-    Uses the same algorithm as command typo suggestions in setup.py.
+    Uses the canonical similarity_score() function for consistency across
+    all fuzzy matching in the application.
 
     Args:
         target: The string to match against
@@ -163,40 +217,6 @@ def find_similar_strings(target: str, candidates: list[str], limit: int = 5) -> 
     Returns:
         List of similar strings, sorted by similarity score (most similar first)
     """
-    def similarity_score(s1, s2):
-        """Calculate similarity score between two strings."""
-        s1_lower = s1.lower()
-        s2_lower = s2.lower()
-
-        # Exact match
-        if s1_lower == s2_lower:
-            return 100
-
-        # Prefix match
-        if s2_lower.startswith(s1_lower) or s1_lower.startswith(s2_lower):
-            return 80
-
-        # Contains match
-        if s1_lower in s2_lower or s2_lower in s1_lower:
-            return 60
-
-        # Character sequence matching
-        matches = 0
-        j = 0
-        for i, char in enumerate(s1_lower):
-            while j < len(s2_lower):
-                if s2_lower[j] == char:
-                    matches += 1
-                    j += 1
-                    break
-                j += 1
-
-        if matches > 0:
-            score = int((matches / max(len(s1_lower), len(s2_lower))) * 50)
-            return score if score > 20 else 0
-
-        return 0
-
     # Score all candidates
     scored = [(candidate, similarity_score(target, candidate)) for candidate in candidates]
 
