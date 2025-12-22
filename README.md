@@ -1,8 +1,8 @@
 # Hue Backup CLI
 
-A Python CLI for programming Philips Hue switches and inspecting the Hue setup. Designed to be used by AI assistants (like Claude Code) as a local tool for home automation tasks, but can also be used directly on the command line.
+A Python CLI for programming Philips Hue switches and inspecting the Hue setup. Designed to be used by AI assistants (like Claude Code) as a local tool for home automation, but also useful on the command line.
 
-**Primary use case:** Map button presses on physical Hue switches to scene activations, and query switch configurations. You can back-up and restore room configurations, so you can change the lights seasonally.
+**Primary use case:** Map button presses on physical Hue switches to scene activations. You can back-up and restore room configurations, so you can change the lights seasonally.
 
 **Not a general light controller** - use the Hue app for that. This tool focuses on switch, zone and room programming, not day to day light controls. Think of it as a terraform for the Hue lighting system.
 
@@ -21,8 +21,8 @@ uv run python hue_backup.py switch-status
 # See what's programmed into wall controls
 uv run python hue_backup.py button-data
 
-# Programme a button (NEW!)
-uv run python hue_backup.py program-button "Office dimmer" 1 --scenes "Read,Relax"
+# Programme a button
+uv run python hue_backup.py program-button "<switch name>" 1 --scenes "Read,Relax"
 ```
 
 ---
@@ -46,7 +46,7 @@ uv run python hue_backup.py program-button "Office dimmer" 1 --scenes "Read,Rela
 
 ## Key Commands
 
-### Inspection (read-only)
+### Inspection
 
 ```bash
 button-data              # What's programmed into all wall controls (PRIMARY)
@@ -70,38 +70,22 @@ switches                 # List all switches
 status                   # Bridge overview
 ```
 
-### Monitoring & Mapping
-
-```bash
-discover                 # Watch button presses (find event codes)
-map <sensor> <event> <scene>  # Map button to scene
-monitor                  # Run continuously, activate mapped scenes
-```
-
-### Programming Buttons (NEW)
+### Programming Buttons
 
 ```bash
 # Scene cycle (2+ scenes)
 program-button "Office dimmer" 1 --scenes "Read,Concentrate,Relax"
 
 # Time-based schedule
-program-button "Living dimmer" 1 --time-based \
+program-button "<switch name>" 1 --time-based \
   --slot 07:00="Morning" --slot 17:00="Evening" --slot 23:00="Night"
 
 # Single scene
-program-button "Bedroom dimmer" 4 --scene "Relax"
-
-# Dimming actions
-program-button "Office dimmer" 2 --dim-up
-program-button "Office dimmer" 3 --dim-down
+program-button "<switch name>" 4 --scene "Relax"
 
 # Long press action
-program-button "Office dimmer" 1 --scenes "Read,Relax" --long-press "All Off"
+program-button "<switch name>" 1 --scenes "Read,Relax" --long-press "All Off"
 ```
-
-**Button numbers:** 1=ON, 2=DIM UP, 3=DIM DOWN, 4=OFF
-
-**What it does:** Modifies bridge-native button configurations without using the Hue app. Perfect for seasonal programming workflows.
 
 **Supported action types:**
 - `--scenes` - Scene cycle (2+ scenes, rotates through on each press)
@@ -111,7 +95,7 @@ program-button "Office dimmer" 1 --scenes "Read,Relax" --long-press "All Off"
 - `--long-press` - Action or scene for long press ("All Off", "Home Off", or scene name)
 
 **Features:**
-- Fuzzy matching for switch and scene names (partial matches work)
+- Fuzzy matching for switch, room/zone and scenes (partial matches work)
 - Shows confirmation preview before applying
 - Supports both old (button1/button2) and new (buttons dict) behaviour formats
 - Write-through cache keeps local state synchronized
@@ -121,17 +105,17 @@ program-button "Office dimmer" 1 --scenes "Read,Relax" --long-press "All Off"
 
 ```bash
 # 1. Save current configuration
-save-room "Living Room"
+save-room "<room name>"
 
 # 2. Programme buttons for seasonal theme
-program-button "Living dimmer" 1 --scenes "Christmas,Xmas lights,Winter cosy"
-program-button "Living dimmer" 4 --scene "Christmas relax"
+program-button "<room name>" 1 --scenes "Christmas,Xmas lights,Winter cosy"
+program-button "<room name>"4 --scene "Christmas"
 
 # 3. Compare saved vs current (see what changed)
-diff-room "Living" --reload -v
+diff-room "<room name>" --reload -v
 
 # 4. Later: restore original configuration
-restore-room "Living"
+restore-room "<room name>"
 ```
 
 **Commands:**
@@ -163,9 +147,9 @@ duplicate-scene "Evening" "Evening bright" --turn-on "Desk lamp"
 ```
 
 **Common workflow:**
-1. Check scenes on a button: `button-data -r "office"`
+1. Check scenes on a button: `button-data -r "<room/zone name>"`
 2. Duplicate all scenes with modifications (e.g., turn off one light for each)
-3. Programme new scenes onto a different button: `program-button "Office dimmer" 4 --scenes "Scene1 no lamp,Scene2 no lamp,Scene3 no lamp"`
+3. Programme new scenes onto a different button: `program-button "<room/zone name>" 4 --scenes "Scene1 no lamp,Scene2 no lamp,Scene3 no lamp"`
 
 **Options:**
 - `--turn-on LIGHT` - Turn specific light ON
@@ -232,7 +216,6 @@ This CLI is designed for AI-driven automation. The structured output and caching
 
 - Query switch configurations without hammering the bridge
 - Inspect scene assignments across rooms
-- Monitor and respond to button presses
 - Track configuration changes over time
 
 Example workflow with Claude Code:
@@ -290,7 +273,7 @@ uv run pytest tests/test_inspection.py -v
 ```
 
 **Test Coverage:**
-- 127 tests total, all passing
+- Over 100 tests
 - All tests use mocks (no actual API calls or file writes)
 - Test files:
   - `test_structure.py` - Directory and file structure
@@ -298,40 +281,14 @@ uv run pytest tests/test_inspection.py -v
   - `test_config.py` - Configuration loading, 1Password
   - `test_cache.py` - Cache management
   - `test_controller.py` - Controller delegation
-  - `test_inspection.py` - Inspection commands (14 tests)
-  - `test_button_config.py` - Button programming logic (33 tests)
+  - `test_inspection.py` - Inspection commands
+  - `test_button_config.py` - Button programming logic
 
 ## Technical Details
 
 ### Behaviour Instance Formats
 
-The `program-button` command supports both Hue API formats, but prefers the new:
-
-**Old format** (button1/button2/button3/button4):
-```json
-{
-  "configuration": {
-    "button1": { "on_short_release": {...} },
-    "button2": { "on_short_release": {...} },
-    "device": {"rid": "device-id", "rtype": "device"}
-  }
-}
-```
-
-**New format** (buttons dict with button RIDs):
-```json
-{
-  "configuration": {
-    "buttons": {
-      "button-rid-1": { "on_short_release": {...} },
-      "button-rid-2": { "on_short_release": {...} }
-    },
-    "device": {"rid": "device-id", "rtype": "device"}
-  }
-}
-```
-
-The command automatically detects which format your bridge uses and handles both transparently.
+The `program-button` command supports both Hue API formats, but prefers the new. The command automatically detects which format your bridge uses and handles both transparently.
 
 ### Configuration Structures
 
@@ -357,12 +314,11 @@ Hue Dimmer Switch buttons generate 4-digit codes: `XYYY`
 - **YYY** = event (000=press, 001=hold, 002=short release, 003=long release)
 
 Example: `1002` = On button, short release
-
-Use `discover` to find your specific event codes. This area not developed/used.
+Use `discover` to find your specific event codes. This area not developed/used currently, but could be later.
 
 ### Battery Status Display
 
-Switches show battery level (percentage) and state from the Hue Bridge:
+Getting `hue switch-status` shows battery level (percentage) and state from the individual switches:
 
 **Battery States & Icons:**
 - 🔋 **Normal** - Battery healthy (green)
@@ -373,12 +329,6 @@ Battery data is:
 - **Cached** during `reload` for offline inspection
 - **Not compared** in room diffs (ephemeral data)
 - **Shown in:** `switch-status`, `switch-info`, and table formats
-
-Example output:
-```
-🔋 Battery: 85% (normal)
-⚠️  Battery: 25% (low)
-🪫 Battery: 5% (critical)
 ```
 
 ## Troubleshooting
@@ -399,8 +349,8 @@ Falls back to local config automatically. Check `op signin` if you want 1Passwor
 
 ## Notes
 
-- API keys don't expire (one-time setup)
-- Cache auto-refreshes after 24 hours
+- Hue API keys don't expire (one-time setup)
+- Cache auto-refreshes after 24 hours (when next run)
 - SSL warnings suppressed (bridges use self-signed certs)
 - Local API only (no cloud/remote API), apart from the initial bridge finder API
 - All write operations require explicit confirmation (use `-y` flag to skip)
