@@ -224,6 +224,9 @@ def help_command():
             commands=[
                 ("button-data", "Show all wall control button programmes"),
                 ("button-data -r <room>", "Show wall controls filtered by room"),
+                ("locations", "Show all rooms/zones with lights and scenes"),
+                ("locations --scenes -r <name>", "Show scenes in specific room/zone"),
+                ("locations --lights", "Show lights in each room/zone"),
                 ("scenes", "List all scenes"),
                 ("scene-details", "Show scenes with light details"),
                 ("scene-details -r <room>", "Show scenes filtered by room"),

@@ -2,12 +2,13 @@
 
 import click
 from core.controller import HueController
+from models.utils import find_similar_strings
 
 
 @click.command(name='locations')
 @click.option('--lights', is_flag=True, help='Show lights in each location')
 @click.option('--scenes', is_flag=True, help='Show scenes in each location')
-@click.option('-r', '--room', help='Filter by room/zone name (case-insensitive substring match)')
+@click.option('-r', '--room', help='Filter by room/zone name (fuzzy match)')
 def locations_command(lights, scenes, room):
     """Show all rooms and zones with optional lights and scenes.
 
@@ -61,16 +62,23 @@ def locations_command(lights, scenes, room):
             'children': z.get('children', [])
         })
 
-    # Filter by room name if specified
+    # Filter by room name if specified (fuzzy match)
     if room:
-        room_lower = room.lower()
-        all_locations = [loc for loc in all_locations if room_lower in loc['name'].lower()]
+        # Get all location names for fuzzy matching
+        location_names = [loc['name'] for loc in all_locations]
+
+        # Find similar names (returns up to 5 matches by default)
+        similar_names = find_similar_strings(room, location_names, limit=10)
+
+        if not similar_names:
+            click.secho(f"✗ No rooms or zones match '{room}'", fg='red')
+            return
+
+        # Filter to only include matching locations
+        all_locations = [loc for loc in all_locations if loc['name'] in similar_names]
 
     if not all_locations:
-        if room:
-            click.secho(f"✗ No rooms or zones match '{room}'", fg='red')
-        else:
-            click.echo("No rooms or zones found.")
+        click.echo("No rooms or zones found.")
         return
 
     # Sort by name
