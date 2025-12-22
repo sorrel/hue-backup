@@ -291,6 +291,7 @@ def button_data_command(room: str, auto_reload: bool):
 
                 # Extract zone/room from button's 'where' field
                 button_zone = None
+                button_zone_type = None
                 if 'where' in button_config:
                     where_list = button_config['where']
                     if where_list and len(where_list) > 0:
@@ -300,11 +301,13 @@ def button_data_command(room: str, auto_reload: bool):
                         if zone_rid:
                             if zone_rtype == 'zone':
                                 button_zone = zones.get(zone_rid, zone_rid[:8])
+                                button_zone_type = 'Zone'
                             elif zone_rtype == 'room':
                                 button_zone = rooms.get(zone_rid, zone_rid[:8])
+                                button_zone_type = 'Room'
 
-                if button_zone:
-                    button_display += f" [{button_zone}]"
+                if button_zone and button_zone_type:
+                    button_display += f" [{button_zone_type}: {button_zone}]"
 
                 click.secho(f"\n  {button_display}:", fg='green', bold=True)
 
