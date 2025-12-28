@@ -149,6 +149,111 @@ class TestGetResourceName:
         assert get_resource_name(resource) == ''
 
 
+class TestExtractRoomRidsFromBehaviour:
+    """Tests for extract_room_rids_from_behaviour function."""
+
+    def test_empty_config(self):
+        """Empty config should return empty list."""
+        from models.utils import extract_room_rids_from_behaviour
+        assert extract_room_rids_from_behaviour({}) == []
+
+    def test_top_level_where(self):
+        """Should extract from top-level where field."""
+        from models.utils import extract_room_rids_from_behaviour
+        config = {
+            'where': [
+                {'group': {'rid': 'room-1', 'rtype': 'room'}}
+            ]
+        }
+        assert extract_room_rids_from_behaviour(config) == ['room-1']
+
+    def test_old_format_button1(self):
+        """Should extract from button1.where (old format)."""
+        from models.utils import extract_room_rids_from_behaviour
+        config = {
+            'button1': {
+                'where': [{'group': {'rid': 'room-2', 'rtype': 'room'}}]
+            }
+        }
+        assert extract_room_rids_from_behaviour(config) == ['room-2']
+
+    def test_old_format_rotary(self):
+        """Should extract from rotary.where (tap dial)."""
+        from models.utils import extract_room_rids_from_behaviour
+        config = {
+            'rotary': {
+                'where': [{'group': {'rid': 'room-3', 'rtype': 'room'}}]
+            }
+        }
+        assert extract_room_rids_from_behaviour(config) == ['room-3']
+
+    def test_new_format_buttons_dict(self):
+        """Should extract from buttons dict (new format)."""
+        from models.utils import extract_room_rids_from_behaviour
+        config = {
+            'buttons': {
+                'btn-rid-1': {
+                    'where': [{'group': {'rid': 'room-4', 'rtype': 'room'}}]
+                }
+            }
+        }
+        assert extract_room_rids_from_behaviour(config) == ['room-4']
+
+    def test_multiple_sources(self):
+        """Should extract from multiple locations without duplicates."""
+        from models.utils import extract_room_rids_from_behaviour
+        config = {
+            'where': [{'group': {'rid': 'room-1', 'rtype': 'room'}}],
+            'button1': {
+                'where': [{'group': {'rid': 'room-1', 'rtype': 'room'}}]  # Duplicate
+            },
+            'button2': {
+                'where': [{'group': {'rid': 'room-2', 'rtype': 'room'}}]
+            }
+        }
+        result = extract_room_rids_from_behaviour(config)
+        assert 'room-1' in result
+        assert 'room-2' in result
+        assert len(result) == 2  # No duplicates
+
+    def test_rtype_filter_room(self):
+        """Should filter by rtype='room' by default."""
+        from models.utils import extract_room_rids_from_behaviour
+        config = {
+            'where': [
+                {'group': {'rid': 'room-1', 'rtype': 'room'}},
+                {'group': {'rid': 'zone-1', 'rtype': 'zone'}}
+            ]
+        }
+        result = extract_room_rids_from_behaviour(config)
+        assert result == ['room-1']
+
+    def test_rtype_filter_none(self):
+        """Should include all rtypes when filter is None."""
+        from models.utils import extract_room_rids_from_behaviour
+        config = {
+            'where': [
+                {'group': {'rid': 'room-1', 'rtype': 'room'}},
+                {'group': {'rid': 'zone-1', 'rtype': 'zone'}}
+            ]
+        }
+        result = extract_room_rids_from_behaviour(config, rtype_filter=None)
+        assert 'room-1' in result
+        assert 'zone-1' in result
+
+    def test_rtype_filter_zone(self):
+        """Should filter by specific rtype."""
+        from models.utils import extract_room_rids_from_behaviour
+        config = {
+            'where': [
+                {'group': {'rid': 'room-1', 'rtype': 'room'}},
+                {'group': {'rid': 'zone-1', 'rtype': 'zone'}}
+            ]
+        }
+        result = extract_room_rids_from_behaviour(config, rtype_filter='zone')
+        assert result == ['zone-1']
+
+
 class TestCreateSceneReverseLookup:
     """Tests for create_scene_reverse_lookup function."""
 

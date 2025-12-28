@@ -14,7 +14,7 @@ from pathlib import Path
 
 from core.config import load_config, save_config
 from core.cache import reload_cache, is_cache_stale, ensure_fresh_cache, get_cache_info
-from models.utils import create_name_lookup
+from models.utils import create_name_lookup, extract_room_rids_from_behaviour
 
 # Button labels for wall controls
 BUTTON_LABELS_EXTENDED = {
@@ -337,58 +337,21 @@ class HueController:
         return self._get_cached_resource('_zones_cache', 'zones', '/resource/zone')
 
     @staticmethod
-    def _extract_where_lists_from_config(config: dict) -> list[list[dict]]:
-        """Extract all 'where' lists from a behaviour configuration.
-
-        Handles multiple locations where room info can be stored:
-        - Top-level 'where' (new format)
-        - 'button1.where' (old format)
-        - 'rotary.where' (dial rotary)
-        - 'buttons[rid].where' (new format with buttons dict)
-
-        Returns:
-            List of 'where' lists found in the config
-        """
-        where_lists = []
-
-        # Top-level where (new format)
-        if 'where' in config:
-            where_lists.append(config['where'])
-
-        # Old format: check button1.where
-        if 'button1' in config and 'where' in config['button1']:
-            where_lists.append(config['button1']['where'])
-
-        # Dial rotary.where
-        if 'rotary' in config and 'where' in config['rotary']:
-            where_lists.append(config['rotary']['where'])
-
-        # New format with buttons dict: check each button's where field
-        if 'buttons' in config:
-            for button_rid, button_config in config['buttons'].items():
-                if 'where' in button_config:
-                    where_lists.append(button_config['where'])
-
-        return where_lists
-
-    def _extract_rooms_from_where_lists(self, where_lists: list[list[dict]], room_lookup: dict[str, str]) -> list[str]:
-        """Extract unique room names from where lists.
+    def _get_room_names_from_rids(room_rids: list[str], room_lookup: dict[str, str]) -> list[str]:
+        """Look up room names from RIDs.
 
         Args:
-            where_lists: List of 'where' lists from behaviour config
+            room_rids: List of room RIDs
             room_lookup: dict mapping room IDs to names
 
         Returns:
-            List of unique room names
+            List of unique room names (preserving order)
         """
         room_names = []
-        for where_list in where_lists:
-            for location in where_list:
-                room_rid = location.get('group', {}).get('rid')
-                if room_rid:
-                    room_name = room_lookup.get(room_rid, '')
-                    if room_name and room_name not in room_names:
-                        room_names.append(room_name)
+        for rid in room_rids:
+            room_name = room_lookup.get(rid, '')
+            if room_name and room_name not in room_names:
+                room_names.append(room_name)
         return room_names
 
     def reload_cache(self) -> bool:
@@ -515,9 +478,9 @@ class HueController:
             if not device_rid:
                 continue
 
-            # Extract rooms using helper methods
-            where_lists = self._extract_where_lists_from_config(config)
-            room_names = self._extract_rooms_from_where_lists(where_lists, room_lookup)
+            # Extract rooms using helper
+            room_rids = extract_room_rids_from_behaviour(config)
+            room_names = self._get_room_names_from_rids(room_rids, room_lookup)
 
             # Add to device_rooms, avoiding duplicates
             if device_rid not in device_rooms:

@@ -8,7 +8,7 @@ import click
 import json
 import traceback
 from datetime import datetime
-from models.utils import display_width, decode_button_event, create_name_lookup, get_cache_controller
+from models.utils import display_width, decode_button_event, create_name_lookup, get_cache_controller, extract_room_rids_from_behaviour
 from core.controller import HueController
 from .helpers import (
     BUTTON_LABELS,
@@ -243,9 +243,9 @@ def button_data_command(room: str, auto_reload: bool):
                         device_id_v1 = device_id_v1.split('/')[-1]
                     break
 
-            # Get room(s) from the behaviour configuration using helper methods
-            where_lists = cache_controller._extract_where_lists_from_config(config)
-            switch_rooms = cache_controller._extract_rooms_from_where_lists(where_lists, rooms)
+            # Get room(s) from the behaviour configuration
+            room_rids = extract_room_rids_from_behaviour(config)
+            switch_rooms = [rooms.get(rid, '') for rid in room_rids if rooms.get(rid)]
 
             # Filter by room if specified - check both device name and room name
             if room:

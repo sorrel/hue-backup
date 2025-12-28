@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 import click
 
+from models.utils import extract_room_rids_from_behaviour
+
 if TYPE_CHECKING:
     from hue_backup import HueController
 
@@ -73,36 +75,10 @@ def save_room_configuration(controller: 'HueController', room_name: str) -> str 
 
     # Extract behaviours targeting this room
     behaviours = cache.get('behaviours', [])
-    room_behaviours = []
-
-    for b in behaviours:
-        config = b.get('configuration', {})
-        where_rids = []
-
-        # Extract all 'where' references
-        if 'where' in config:
-            for w in config['where']:
-                if w.get('group', {}).get('rtype') == 'room':
-                    where_rids.append(w.get('group', {}).get('rid'))
-
-        # Check button-specific where (old format)
-        for key in ['button1', 'button2', 'button3', 'button4', 'rotary']:
-            if key in config and 'where' in config[key]:
-                for w in config[key]['where']:
-                    if w.get('group', {}).get('rtype') == 'room':
-                        where_rids.append(w.get('group', {}).get('rid'))
-
-        # Check new format
-        if 'buttons' in config:
-            for button_rid, button_config in config['buttons'].items():
-                if 'where' in button_config:
-                    for w in button_config['where']:
-                        if w.get('group', {}).get('rtype') == 'room':
-                            where_rids.append(w.get('group', {}).get('rid'))
-
-        # If this behaviour targets our room, include it
-        if room_id in where_rids:
-            room_behaviours.append(b)
+    room_behaviours = [
+        b for b in behaviours
+        if room_id in extract_room_rids_from_behaviour(b.get('configuration', {}))
+    ]
 
     # Create saved configuration
     saved_config = {
@@ -189,33 +165,10 @@ def diff_room_configuration(controller: 'HueController', saved_file_path: str, v
         # Get current data for comparison
         current_lights = [l for l in cache.get('lights', []) if l.get('owner', {}).get('rid') in device_rids]
         current_scenes = [s for s in cache.get('scenes', []) if s.get('group', {}).get('rid') == room_id]
-        current_behaviours = []
-
-        # Extract current behaviours for this room (same logic as save)
-        for b in cache.get('behaviours', []):
-            config = b.get('configuration', {})
-            where_rids = []
-
-            if 'where' in config:
-                for w in config['where']:
-                    if w.get('group', {}).get('rtype') == 'room':
-                        where_rids.append(w.get('group', {}).get('rid'))
-
-            for key in ['button1', 'button2', 'button3', 'button4', 'rotary']:
-                if key in config and 'where' in config[key]:
-                    for w in config[key]['where']:
-                        if w.get('group', {}).get('rtype') == 'room':
-                            where_rids.append(w.get('group', {}).get('rid'))
-
-            if 'buttons' in config:
-                for button_rid, button_config in config['buttons'].items():
-                    if 'where' in button_config:
-                        for w in button_config['where']:
-                            if w.get('group', {}).get('rtype') == 'room':
-                                where_rids.append(w.get('group', {}).get('rid'))
-
-            if room_id in where_rids:
-                current_behaviours.append(b)
+        current_behaviours = [
+            b for b in cache.get('behaviours', [])
+            if room_id in extract_room_rids_from_behaviour(b.get('configuration', {}))
+        ]
 
         # Create scene ID -> name lookup for verbose output
         scene_lookup = {}

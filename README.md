@@ -252,7 +252,7 @@ commands/                # CLI commands
       ├── status.py      # Status/overview (3 commands)
       ├── devices.py     # Device listing (4 commands)
       └── switches.py    # Switch inspection (5 commands)
-tests/                   # 135 tests, all mocked
+tests/                   # 144 tests, all mocked
   ├── test_button_config.py  # Button configuration tests
   ├── test_inspection.py     # Inspection command tests
   └── test_utils.py      # Utility function tests
@@ -275,7 +275,7 @@ uv run pytest tests/test_inspection.py -v
 ```
 
 **Test Coverage:**
-- 135 tests
+- 144 tests
 - All tests use mocks (no actual API calls or file writes)
 - Test files:
   - `test_structure.py` - Directory and file structure
