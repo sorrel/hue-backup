@@ -1,7 +1,7 @@
 """Tests for configuration functions in core/config.py
 
 NOTE: These are READ-ONLY tests only, following the refactoring testing policy.
-No actual file writes or 1Password calls are made during testing.
+No actual file writes are made during testing.
 """
 
 import pytest
@@ -11,7 +11,6 @@ from unittest.mock import patch, MagicMock
 from core.config import (
     CONFIG_FILE,
     USER_CONFIG_FILE,
-    is_op_available,
     load_config,
     save_config
 )
@@ -31,44 +30,6 @@ class TestConstants:
         assert isinstance(USER_CONFIG_FILE, Path)
         assert USER_CONFIG_FILE.name == 'config.json'
         assert '.hue_backup' in str(USER_CONFIG_FILE)
-
-
-class TestIsOpAvailable:
-    """Test 1Password CLI availability check."""
-
-    @patch('subprocess.run')
-    def test_op_available_success(self, mock_run):
-        """When op CLI exists and works, should return True."""
-        mock_run.return_value = MagicMock(returncode=0)
-        result = is_op_available()
-        assert result is True
-        mock_run.assert_called_once()
-        # Verify it calls 'op --version'
-        call_args = mock_run.call_args[0][0]
-        assert call_args[0] == 'op'
-        assert '--version' in call_args
-
-    @patch('subprocess.run')
-    def test_op_not_found(self, mock_run):
-        """When op CLI doesn't exist, should return False."""
-        mock_run.side_effect = FileNotFoundError()
-        result = is_op_available()
-        assert result is False
-
-    @patch('subprocess.run')
-    def test_op_timeout(self, mock_run):
-        """When op CLI times out, should return False."""
-        from subprocess import TimeoutExpired
-        mock_run.side_effect = TimeoutExpired('op', 2)
-        result = is_op_available()
-        assert result is False
-
-    @patch('subprocess.run')
-    def test_op_error_returncode(self, mock_run):
-        """When op CLI returns error code, should return False."""
-        mock_run.return_value = MagicMock(returncode=1)
-        result = is_op_available()
-        assert result is False
 
 
 class TestLoadConfig:

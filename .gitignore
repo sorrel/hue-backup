@@ -56,3 +56,6 @@ config.json
 # Logs
 *.log
 .claude/
+
+# Environment variables (1Password mounted .env file)
+.env

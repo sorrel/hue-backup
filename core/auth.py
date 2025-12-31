@@ -2,12 +2,11 @@
 Authentication module for Hue Bridge.
 
 Handles bridge discovery, link button authentication, and credential management
-from multiple sources (1Password, local config file, interactive setup).
+from 1Password Environments via .env file (mounted by 1Password desktop app).
 """
 
 import os
 import json
-import subprocess
 from pathlib import Path
 
 import click
@@ -18,9 +17,6 @@ from models.types import AuthCredentials, DiscoveredBridge
 
 # Disable SSL warnings for self-signed certificate
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-
-# User configuration file location
-USER_CONFIG_FILE = Path.home() / '.hue_backup' / 'config.json'
 
 
 def discover_bridges() -> list[DiscoveredBridge]:
@@ -190,153 +186,37 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
     return None
 
 
-def load_auth_from_user_config() -> AuthCredentials | None:
-    """Load bridge IP and API token from user config file.
+
+
+
+
+def load_auth_from_environment() -> AuthCredentials | None:
+    """Load bridge IP and API token from environment variables.
+
+    Designed to work with 1Password Environments via `op run`.
+    Checks for HUE_BRIDGE_IP and HUE_API_TOKEN environment variables.
 
     Returns:
         Dict with 'bridge_ip' and 'api_token', or None if not found
     """
-    try:
-        if not USER_CONFIG_FILE.exists():
-            return None
+    bridge_ip = os.getenv('HUE_BRIDGE_IP')
+    api_token = os.getenv('HUE_API_TOKEN')
 
-        with open(USER_CONFIG_FILE, 'r') as f:
-            config = json.load(f)
+    if bridge_ip and api_token:
+        return {
+            'bridge_ip': bridge_ip,
+            'api_token': api_token
+        }
 
-        bridge_ip = config.get('bridge_ip')
-        api_token = config.get('api_token')
-
-        # Validate both values exist and are non-empty strings
-        if bridge_ip and api_token and isinstance(bridge_ip, str) and isinstance(api_token, str):
-            return {
-                'bridge_ip': bridge_ip,
-                'api_token': api_token
-            }
-
-        return None
-
-    except (json.JSONDecodeError, IOError) as e:
-        click.echo(f"Warning: Failed to load config from {USER_CONFIG_FILE}: {e}", err=True)
-        return None
-
-
-def save_auth_to_user_config(bridge_ip: str, api_token: str) -> bool:
-    """Save bridge IP and API token to user config file.
-
-    Creates the config directory if it doesn't exist and sets secure
-    file permissions (600 - user read/write only).
-
-    Args:
-        bridge_ip: Bridge IP address
-        api_token: API token/username
-
-    Returns:
-        True if saved successfully, False otherwise
-    """
-    try:
-        # Create directory if needed
-        USER_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-
-        # Load existing config or create new
-        config = {}
-        if USER_CONFIG_FILE.exists():
-            try:
-                with open(USER_CONFIG_FILE, 'r') as f:
-                    config = json.load(f)
-            except (json.JSONDecodeError, IOError):
-                # If existing file is corrupt, start fresh
-                pass
-
-        # Update auth credentials
-        config['bridge_ip'] = bridge_ip
-        config['api_token'] = api_token
-
-        # Write config file
-        with open(USER_CONFIG_FILE, 'w') as f:
-            json.dump(config, f, indent=2)
-
-        # Set secure file permissions (user read/write only)
-        os.chmod(USER_CONFIG_FILE, 0o600)
-
-        return True
-
-    except (IOError, OSError) as e:
-        click.echo(f"Error: Failed to save config to {USER_CONFIG_FILE}: {e}", err=True)
-        return False
-
-
-def load_auth_from_1password() -> AuthCredentials | None:
-    """Load bridge IP and API token from 1Password vault.
-
-    Reads vault and item names from environment variables:
-    - HUE_1PASSWORD_VAULT (default: "Private")
-    - HUE_1PASSWORD_ITEM (default: "Hue")
-
-    Expects two fields in the 1Password item:
-    - "bridge-ip": Bridge IP address
-    - "API-token": API authentication token
-
-    Returns:
-        Dict with 'bridge_ip' and 'api_token', or None if not available
-    """
-    from core.config import is_op_available
-
-    # Check if 1Password CLI is available
-    if not is_op_available():
-        return None
-
-    # Get vault and item names from environment
-    vault = os.getenv('HUE_1PASSWORD_VAULT', 'Private')
-    item = os.getenv('HUE_1PASSWORD_ITEM', 'Hue')
-
-    try:
-        # Fetch bridge IP
-        result_ip = subprocess.run(
-            ['op', 'item', 'get', item,
-             '--vault', vault,
-             '--fields', 'bridge-ip',
-             '--reveal'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-
-        # Fetch API token
-        result_token = subprocess.run(
-            ['op', 'item', 'get', item,
-             '--vault', vault,
-             '--fields', 'API-token',
-             '--reveal'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-
-        # Check both commands succeeded
-        if result_ip.returncode == 0 and result_token.returncode == 0:
-            bridge_ip = result_ip.stdout.strip()
-            api_token = result_token.stdout.strip()
-
-            if bridge_ip and api_token:
-                return {
-                    'bridge_ip': bridge_ip,
-                    'api_token': api_token
-                }
-
-        return None
-
-    except (subprocess.TimeoutExpired, Exception) as e:
-        click.echo(f"Warning: Failed to load from 1Password: {e}", err=True)
-        return None
+    return None
 
 
 def get_auth_credentials(interactive: bool = True) -> AuthCredentials | None:
     """Get authentication credentials using priority system.
 
     Priority order:
-    1. 1Password (if available and configured)
-    2. Local config file (~/.hue_backup/config.json)
-    3. Interactive setup (if interactive=True)
+    1. Environment variables (HUE_BRIDGE_IP, HUE_API_TOKEN) - for 1Password Environments
+    2. Interactive setup (if interactive=True)
 
     Args:
         interactive: If True, prompt for interactive setup if other methods fail
@@ -344,30 +224,24 @@ def get_auth_credentials(interactive: bool = True) -> AuthCredentials | None:
     Returns:
         Dict with 'bridge_ip' and 'api_token', or None if all methods fail
     """
-    # Priority 1: Try 1Password
-    credentials = load_auth_from_1password()
+    # Priority 1: Try environment variables (1Password Environments)
+    credentials = load_auth_from_environment()
     if credentials:
-        click.echo(f"✓ Loaded credentials from 1Password")
+        click.echo(f"✓ Loaded credentials from environment variables")
         return credentials
 
-    # Priority 2: Try local config file
-    credentials = load_auth_from_user_config()
-    if credentials:
-        click.echo(f"✓ Loaded credentials from {USER_CONFIG_FILE}")
-        return credentials
-
-    # Priority 3: Interactive setup (if allowed)
+    # Priority 2: Interactive setup (if allowed)
     if not interactive:
         return None
 
     click.echo()
     click.secho("No authentication credentials found.", fg='yellow', bold=True)
     click.echo()
-    click.echo("Would you like to set up authentication now?")
+    click.echo("Would you like to create authentication credentials?")
     click.echo("This will:")
     click.echo("  • Discover your Hue bridge automatically")
     click.echo("  • Guide you through link button authentication")
-    click.echo(f"  • Save credentials to {USER_CONFIG_FILE}")
+    click.echo("  • Provide credentials to add to your 1Password Environment")
     click.echo()
 
     if not click.confirm("Continue with setup?", default=True):
@@ -412,27 +286,28 @@ def get_auth_credentials(interactive: bool = True) -> AuthCredentials | None:
         click.secho("✗ Failed to create API credentials", fg='red')
         return None
 
-    # Step 3: Save credentials
+    # Step 3: Show credentials for 1Password Environment setup
     click.echo()
-    click.echo("Saving credentials...")
+    click.secho("✓ Successfully created API credentials!", fg='green', bold=True)
+    click.echo()
+    click.secho("═══════════════════════════════════════════════════", fg='cyan', bold=True)
+    click.secho("  Add these to your 1Password Environment:", fg='cyan', bold=True)
+    click.secho("═══════════════════════════════════════════════════", fg='cyan', bold=True)
+    click.echo()
+    click.echo(f"  {click.style('HUE_BRIDGE_IP', fg='yellow', bold=True)} = {click.style(bridge_ip, fg='green')}")
+    click.echo(f"  {click.style('HUE_API_TOKEN', fg='yellow', bold=True)} = {click.style(api_token, fg='green')}")
+    click.echo()
+    click.secho("Steps to add to 1Password Environment:", fg='cyan')
+    click.echo("  1. Open 1Password desktop app")
+    click.echo("  2. Go to Developer → View Environments")
+    click.echo("  3. Create or open 'Hue Control' environment")
+    click.echo("  4. Add the two variables above")
+    click.echo("  5. Go to Destinations → Configure local .env file")
+    click.echo(f"  6. Set path: {Path.cwd()}/.env")
+    click.echo("  7. Click 'Mount .env file'")
+    click.echo()
+    click.secho("After adding to 1Password, run 'setup' to test connection.", fg='cyan')
+    click.echo()
 
-    if save_auth_to_user_config(bridge_ip, api_token):
-        click.secho(f"✓ Configuration saved to {USER_CONFIG_FILE}", fg='green')
-        return {
-            'bridge_ip': bridge_ip,
-            'api_token': api_token
-        }
-    else:
-        click.secho("✗ Failed to save configuration", fg='red')
-        click.echo("\nYou can manually create the config file:")
-        click.echo(f"  mkdir -p {USER_CONFIG_FILE.parent}")
-        click.echo(f"  cat > {USER_CONFIG_FILE} << 'EOF'")
-        click.echo(f'  {{"bridge_ip": "{bridge_ip}", "api_token": "{api_token}"}}')
-        click.echo(f"  EOF")
-        click.echo(f"  chmod 600 {USER_CONFIG_FILE}")
-
-        # Return credentials even if save failed
-        return {
-            'bridge_ip': bridge_ip,
-            'api_token': api_token
-        }
+    # Return None since credentials aren't loaded in environment yet
+    return None

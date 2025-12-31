@@ -1,29 +1,16 @@
-"""Configuration management and 1Password integration.
+"""Configuration management.
 
 This module handles:
 - Loading/saving configuration files
-- 1Password CLI integration for API token retrieval
 - Button mapping persistence
 """
 
 import json
-import subprocess
 from pathlib import Path
 
 # Configuration file paths
 CONFIG_FILE = Path(__file__).parent.parent / 'cache.nosync' / 'hue_data.json'
 USER_CONFIG_FILE = Path.home() / '.hue_backup' / 'config.json'
-
-
-def is_op_available() -> bool:
-    """Check if 1Password CLI is available."""
-    try:
-        result = subprocess.run(['op', '--version'],
-                              capture_output=True,
-                              timeout=2)
-        return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return False
 
 
 def load_config() -> dict:

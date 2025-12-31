@@ -173,44 +173,45 @@ All commands support `-h` for help.
 
 ## Authentication
 
-The tool tries these in order:
+Credentials are managed via **1Password Environments** for maximum security.
 
-1. **1Password** - If `op` CLI available, reads from vault (see below)
-2. **Local config** - `~/.hue_backup/config.json`
-3. **Interactive** - Prompts to run `configure`
+### Setup Steps
 
-### Option A: Interactive Setup (Recommended)
+1. **Create API credentials** (first time only):
+   ```bash
+   uv run python hue_backup.py configure
+   ```
+   This discovers your bridge, guides you through link button auth, and displays credentials.
 
-```bash
-uv run python hue_backup.py configure
-```
+2. **Add to 1Password Environment:**
+   - Open 1Password desktop app
+   - Go to **Developer** → **View Environments**
+   - Create/open "Hue Control" environment
+   - Add two variables:
+     - `HUE_BRIDGE_IP` = your bridge IP (e.g., 192.168.1.100)
+     - `HUE_API_TOKEN` = your API token from step 1
+   - Go to **Destinations** tab → **Configure local .env file**
+   - Set path to: `/path/to/hue-control/.env`
+   - Click **Mount .env file**
 
-Discovers your bridge, guides you through link button auth, saves credentials.
+3. **Test connection:**
+   ```bash
+   uv run python hue_backup.py setup
+   ```
 
-### Option B: 1Password
+### Why 1Password Environments?
 
-Add to your 1Password vault:
-- **Item:** "Hue" (in "Private" vault)
-- **Fields:** `bridge-ip` and `API-token`
+- **Secure:** Secrets never written to disk as plaintext (mounted via UNIX pipes)
+- **Scoped:** Only exposes the specific variables you configure
+- **Simple:** No CLI subprocess calls that could be intercepted
+- **Team-friendly:** Share environments with collaborators
 
-Override defaults with environment variables:
-```bash
-export HUE_1PASSWORD_VAULT="Work"
-export HUE_1PASSWORD_ITEM="MyBridge"
-```
+### How It Works
 
-### Option C: Manual Config
-
-```bash
-mkdir -p ~/.hue_backup
-cat > ~/.hue_backup/config.json << 'EOF'
-{
-  "bridge_ip": "192.168.1.100",
-  "api_token": "your-api-token-here"
-}
-EOF
-chmod 600 ~/.hue_backup/config.json
-```
+- The `.env` file is mounted by 1Password (not a real file on disk)
+- `python-dotenv` loads variables at startup
+- Your credentials are automatically available
+- `.env` file is gitignored to prevent accidental commits
 
 ## Using with AI Assistants
 
@@ -266,7 +267,7 @@ cache/                   # Local cache (gitignored)
 # Install dependencies with dev extras (includes pytest)
 uv sync --extra dev
 
-# Run all tests (135 total, all passing)
+# Run all tests (140 total, all passing)
 uv run pytest -v
 
 # Run specific test file
@@ -275,12 +276,12 @@ uv run pytest tests/test_inspection.py -v
 ```
 
 **Test Coverage:**
-- 144 tests
+- 140 tests
 - All tests use mocks (no actual API calls or file writes)
 - Test files:
   - `test_structure.py` - Directory and file structure
   - `test_utils.py` - Display width, button events, lookups
-  - `test_config.py` - Configuration loading, 1Password
+  - `test_config.py` - Configuration loading
   - `test_cache.py` - Cache management
   - `test_controller.py` - Controller delegation
   - `test_inspection.py` - Inspection commands
@@ -346,8 +347,10 @@ uv run python hue_backup.py configure --reconfigure  # Start fresh
 uv run python hue_backup.py reload  # Force cache refresh
 ```
 
-**1Password not working?**
-Falls back to local config automatically. Check `op signin` if you want 1Password.
+**1Password Environment not loading?**
+- Verify .env file is mounted in 1Password desktop app
+- Check variables are named correctly: `HUE_BRIDGE_IP` and `HUE_API_TOKEN`
+- Ensure .env file path matches your project directory
 
 ## Notes
 

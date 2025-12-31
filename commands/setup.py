@@ -280,71 +280,56 @@ def configure_command(reconfigure):
     """Interactive bridge configuration and authentication setup.
 
     This command helps you:
-    - Use 1Password for credentials (if available)
-    - OR discover Hue bridges on your network
-    - Create API credentials via link button
-    - Save credentials to local config file
+    - Discover Hue bridges on your network
+    - Create API credentials via link button authentication
+    - Provides credentials to add to your 1Password Environment
 
     Run this if you're setting up the tool for the first time,
     or if you need to reconfigure for a different bridge.
+
+    After configuration, add the credentials to your 1Password Environment
+    and mount the .env file destination to complete setup.
     """
     from core.auth import (
         discover_bridges,
         select_bridge_interactive,
         create_user_via_link_button,
-        save_auth_to_user_config,
-        load_auth_from_user_config,
-        load_auth_from_1password
+        load_auth_from_environment
     )
-    from core.config import is_op_available
 
     click.secho("\n╔══════════════════════════════════════════════════════════╗", fg='cyan', bold=True)
     click.secho("║          Hue Backup - Bridge Configuration               ║", fg='cyan', bold=True)
     click.secho("╚══════════════════════════════════════════════════════════╝", fg='cyan', bold=True)
     click.echo()
 
-    # Check if already configured
-    if not reconfigure:
-        existing = load_auth_from_user_config()
-        if existing:
-            click.echo(f"✓ Credentials already configured for bridge {existing['bridge_ip']}")
-            click.echo()
-            if not click.confirm("Reconfigure anyway?", default=False):
-                click.echo()
-                return
-            click.echo()
+    # Check if environment variables are already set (1Password Environments)
+    env_creds = load_auth_from_environment()
+    if env_creds and not reconfigure:
+        click.secho(f"✓ Environment variables already configured for bridge {env_creds['bridge_ip']}", fg='green')
+        click.echo()
+        click.echo("Your 1Password Environment configuration is working correctly.")
+        click.echo()
+        if not click.confirm("Reconfigure anyway?", default=False):
+            return
+        click.echo()
 
-    # Ask about 1Password preference first
-    vault = os.getenv('HUE_1PASSWORD_VAULT', 'Private')
-    item = os.getenv('HUE_1PASSWORD_ITEM', 'Hue')
-
-    use_1password = click.confirm("Do you want to use 1Password for credential storage?", default=True)
+    # Show 1Password Environment setup instructions
+    click.echo("To use 1Password Environments:")
+    click.echo("  1. Open 1Password desktop app")
+    click.echo("  2. Go to Developer → View Environments")
+    click.echo("  3. Create/open your 'Hue Control' environment")
+    click.echo("  4. Add variables: HUE_BRIDGE_IP and HUE_API_TOKEN")
+    click.echo("  5. Go to Destinations tab → Configure local .env file")
+    click.echo(f"  6. Set path to: {Path.cwd()}/.env")
+    click.echo("  7. Click 'Mount .env file'")
     click.echo()
 
-    if use_1password:
-        # Check if 1Password CLI is available
-        if not is_op_available():
-            click.secho("✗ 1Password CLI not installed", fg='red')
-            click.echo()
-            click.echo("To use 1Password, you need to install the CLI:")
-            click.echo(click.style("  brew install --cask 1password-cli", fg='cyan'))
-            click.echo()
-            click.echo("After installing, run this command again.")
-            click.echo()
-            return
-
-        # Check if already configured
-        op_creds = load_auth_from_1password()
-        if op_creds:
-            click.secho(f"✓ 1Password already configured for bridge {op_creds['bridge_ip']}", fg='green')
-            click.echo()
-            click.echo("Your 1Password configuration is working correctly.")
-            click.echo("No further setup needed unless you want to use a different bridge.")
-            click.echo()
-            return
-
-        click.secho("✓ 1Password CLI detected", fg='green')
+    if not click.confirm("Do you need to generate new bridge credentials?", default=True):
         click.echo()
+        click.echo("Setup cancelled. If you already have credentials, add them to")
+        click.echo("your 1Password Environment and run 'setup' to test connection.")
+        click.echo()
+        return
 
     # Step 1: Discover bridges
     click.echo("Step 1: Discovering Hue bridges...")
@@ -389,41 +374,27 @@ def configure_command(reconfigure):
         click.echo()
         return
 
+    # Step 3: Show credentials for 1Password Environment
+    click.echo()
+    click.secho("Step 3: Add credentials to 1Password Environment", fg='cyan', bold=True)
+    click.echo()
+    click.secho("═══════════════════════════════════════════════════", fg='yellow', bold=True)
+    click.secho("  Copy these credentials (displayed once only):", fg='yellow', bold=True)
+    click.secho("═══════════════════════════════════════════════════", fg='yellow', bold=True)
+    click.echo()
+    click.echo(f"  {click.style('HUE_BRIDGE_IP', fg='cyan', bold=True)} = {click.style(bridge_ip, fg='green', bold=True)}")
+    click.echo(f"  {click.style('HUE_API_TOKEN', fg='cyan', bold=True)} = {click.style(api_token, fg='green', bold=True)}")
+    click.echo()
+    click.secho("Add these to your 1Password Environment:", fg='cyan')
+    click.echo("  1. Open 1Password desktop app")
+    click.echo("  2. Go to Developer → View Environments")
+    click.echo("  3. Open your 'Hue Control' environment")
+    click.echo("  4. Add/update the two variables above")
+    click.echo("  5. Ensure .env file destination is mounted")
     click.echo()
 
-    # Step 3: Save credentials
-    config_path = Path.home() / '.hue_backup' / 'config.json'
-
-    if use_1password:
-        # Show 1Password instructions
-        click.secho("Listen carefully, I will say this only once...", fg='cyan', bold=True)
-        click.echo()
-        click.echo("Add these credentials to your 1Password item:")
-        click.echo(f"  Vault: {click.style(vault, fg='cyan')}")
-        click.echo(f"  Item:  {click.style(item, fg='cyan')}")
-        click.echo()
-        click.echo(f"  {click.style('bridge-ip', fg='yellow')} → {click.style(bridge_ip, fg='green', bold=True)}")
-        click.echo(f"  {click.style('API-token', fg='yellow')} → {click.style(api_token, fg='green', bold=True)}")
-        click.echo()
-
-        # Ask if they also want local backup
-        if click.confirm("Also save to local config file for backup?", default=False):
-            click.echo()
-            if save_auth_to_user_config(bridge_ip, api_token):
-                click.secho(f"✓ Also saved to {config_path}", fg='green')
-                click.echo()
-    else:
-        # Save to local config only
-        click.echo("Step 3: Saving credentials to local config...")
-        if save_auth_to_user_config(bridge_ip, api_token):
-            click.secho(f"✓ Configuration saved to {config_path}", fg='green')
-            click.echo()
-        else:
-            click.secho(f"✗ Failed to save to {config_path}", fg='red')
-            click.echo()
-
     click.secho("╔══════════════════════════════════════════════════════════╗", fg='green', bold=True)
-    click.secho("║          Configuration complete!                         ║", fg='green', bold=True)
+    click.secho("║  Configuration complete! Run 'setup' to test connection  ║", fg='green', bold=True)
     click.secho("╚══════════════════════════════════════════════════════════╝", fg='green', bold=True)
 
     click.echo()
@@ -434,61 +405,37 @@ def setup_command():
     """Show current bridge configuration and test connection.
 
     Configuration sources (priority order):
-    1. 1Password (env: HUE_1PASSWORD_VAULT, HUE_1PASSWORD_ITEM)
-    2. Local config file (~/.hue_backup/config.json)
-    3. Interactive setup (run 'configure' command)
+    1. Environment variables (HUE_BRIDGE_IP, HUE_API_TOKEN) - 1Password Environments
+    2. Interactive setup (run 'configure' command)
     """
     from core.controller import HueController
-    from core.auth import load_auth_from_1password, load_auth_from_user_config
-    from core.config import is_op_available
+    from core.auth import load_auth_from_environment
 
     click.echo()
     click.secho("=== Hue Bridge Configuration ===", fg='cyan', bold=True)
     click.echo()
 
-    # Check 1Password
-    click.echo(click.style("1. 1Password", fg='cyan', bold=True))
-    vault = os.getenv('HUE_1PASSWORD_VAULT', 'Private')
-    item = os.getenv('HUE_1PASSWORD_ITEM', 'Hue')
-
-    if not is_op_available():
-        click.echo(f"   Status:      {click.style('✗ CLI not installed', fg='yellow')}")
-        click.echo(f"   Note:        Install 1Password CLI ('op') to use this option")
-    else:
-        op_creds = load_auth_from_1password()
-        if op_creds:
-            click.echo(f"   Status:      {click.style('✓ Configured', fg='green')}")
-            click.echo(f"   Vault:       {vault}")
-            click.echo(f"   Item:        {item}")
-            click.echo(f"   Bridge IP:   {op_creds['bridge_ip']}")
-        else:
-            click.echo(f"   Status:      {click.style('⚠ CLI available, credentials not found', fg='yellow')}")
-            click.echo(f"   Vault:       {vault} (set HUE_1PASSWORD_VAULT to override)")
-            click.echo(f"   Item:        {item} (set HUE_1PASSWORD_ITEM to override)")
-            click.echo(f"   Note:        Add 'bridge-ip' and 'API-token' fields to your 1Password item")
-    click.echo()
-
-    # Check local config
-    click.echo(click.style("2. Local Configuration", fg='cyan', bold=True))
-    config_path = Path.home() / '.hue_backup' / 'config.json'
-    local_creds = load_auth_from_user_config()
-    if local_creds:
-        click.echo(f"   Status:      {click.style('✓ Available', fg='green')}")
-        click.echo(f"   Path:        {config_path}")
-        click.echo(f"   Bridge IP:   {local_creds['bridge_ip']}")
+    # Check environment variables (1Password Environments)
+    click.echo(click.style("1. Environment Variables (1Password Environments)", fg='cyan', bold=True))
+    env_creds = load_auth_from_environment()
+    if env_creds:
+        click.echo(f"   Status:      {click.style('✓ Configured', fg='green')}")
+        click.echo(f"   Variables:   HUE_BRIDGE_IP, HUE_API_TOKEN")
+        click.echo(f"   Bridge IP:   {env_creds['bridge_ip']}")
+        click.echo(f"   Source:      .env file (1Password mounted)")
     else:
         click.echo(f"   Status:      {click.style('✗ Not configured', fg='yellow')}")
-        click.echo(f"   Path:        {config_path} (does not exist)")
+        click.echo(f"   Note:        Set up via 1Password Environments → local .env file")
     click.echo()
 
     # Project cache
-    click.echo(click.style("3. Project Cache", fg='cyan', bold=True))
+    click.echo(click.style("2. Project Cache", fg='cyan', bold=True))
     click.echo(f"   Path:        {CONFIG_FILE}")
     click.echo(f"   Purpose:     Button mappings and bridge data cache")
     click.echo()
 
     # Test connection
-    if not op_creds and not local_creds:
+    if not env_creds:
         click.secho("⚠ No authentication configured", fg='yellow', bold=True)
         click.echo()
         click.echo("Run this command to set up authentication:")

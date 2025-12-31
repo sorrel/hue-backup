@@ -4,6 +4,10 @@ Hue Backup CLI
 Back up and restore Philips Hue switch configurations and room settings.
 """
 
+# Load environment variables from .env file (1Password Environment support)
+from dotenv import load_dotenv
+load_dotenv()
+
 import click
 import os
 import requests
