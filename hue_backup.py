@@ -151,7 +151,6 @@ _hue_commands() {{
         'switches:List all switches and sensors'
         'debug-buttons:Debug - show raw button configuration data'
         'button-data:Show programmed wall controls (dimmers and dials)'
-        'bridge-auto:Show bridge-configured button automations'
         'switch-status:Display switch status with CLI mappings'
         'switch-info:Get detailed information about switches'
         'plugs:Display smart plug status (on/off by room)'
@@ -206,7 +205,7 @@ compdef _hue hue
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="help setup configure reload cache-info save-room diff-room restore-room scene-details status groups scenes switches debug-buttons button-data bridge-auto switch-status switch-info plugs lights other all power brightness colour activate-scene auto-dynamic map mappings discover monitor program-button install-completion show-completion"
+    commands="help setup configure reload cache-info save-room diff-room restore-room scene-details status groups scenes switches debug-buttons button-data switch-status switch-info plugs lights other all power brightness colour activate-scene auto-dynamic map mappings discover monitor program-button install-completion show-completion"
 
     if [[ ${COMP_CWORD} == 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- ${cur}) )

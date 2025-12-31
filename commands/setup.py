@@ -212,7 +212,6 @@ def help_command():
                 ("zones --multi-zone", "Show lights in multiple zones"),
                 ("auto-dynamic", "View auto-dynamic status for all scenes"),
                 ("auto-dynamic -r <room>", "View auto-dynamic filtered by room"),
-                ("bridge-auto", "Show bridge automations (deprecated)"),
             ]
         ),
         CommandSection(
