@@ -58,7 +58,8 @@ from commands.zone_programming import (
     program_zone_switch_command
 )
 from commands.scene_management import (
-    duplicate_scene_command
+    duplicate_scene_command,
+    modify_scenes_command
 )
 
 # Disable SSL warnings for self-signed certificate
@@ -167,6 +168,7 @@ _hue_commands() {{
         'discover:Discover button events by pressing buttons'
         'monitor:Monitor switches and activate mapped scenes'
         'program-button:Programme a button on a Hue switch'
+        'modify-scenes:Modify multiple scenes in bulk'
         'install-completion:Install shell completion'
         'show-completion:Show completion script'
     )
@@ -205,7 +207,7 @@ compdef _hue hue
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="help setup configure reload cache-info save-room diff-room restore-room scene-details status groups scenes switches debug-buttons button-data switch-status switch-info plugs lights other all power brightness colour activate-scene auto-dynamic map mappings discover monitor program-button install-completion show-completion"
+    commands="help setup configure reload cache-info save-room diff-room restore-room scene-details status groups scenes switches debug-buttons button-data switch-status switch-info plugs lights other all power brightness colour activate-scene auto-dynamic map mappings discover monitor program-button modify-scenes install-completion show-completion"
 
     if [[ ${COMP_CWORD} == 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- ${cur}) )
@@ -370,6 +372,7 @@ cli.add_command(program_zone_switch_command, name='program-zone-switch')
 
 # Scene management commands
 cli.add_command(duplicate_scene_command, name='duplicate-scene')
+cli.add_command(modify_scenes_command, name='modify-scenes')
 
 
 if __name__ == '__main__':

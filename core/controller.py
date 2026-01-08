@@ -724,7 +724,8 @@ class HueController:
         return result is not None
 
     def create_scene(self, name: str, group_rid: str, actions: list[dict],
-                     auto_dynamic: bool = True, speed: float = 0.6, group_rtype: str = "zone") -> str | None:
+                     auto_dynamic: bool = True, speed: float = 0.6, group_rtype: str = "zone",
+                     palette: dict | None = None) -> str | None:
         """Create a new scene (write-through cache).
 
         Args:
@@ -734,6 +735,7 @@ class HueController:
             auto_dynamic: Enable auto-dynamic palette cycling (default: True)
             speed: Dynamic effect speed 0.0 - 1.0 (default: 0.6)
             group_rtype: Group type - 'zone' or 'room' (default: 'zone')
+            palette: Optional palette data (colour, dimming, effects)
 
         Returns:
             New scene ID if successful, None if failed
@@ -746,6 +748,10 @@ class HueController:
             "auto_dynamic": auto_dynamic,
             "speed": speed,
         }
+
+        # Include palette if provided
+        if palette is not None:
+            scene_data["palette"] = palette
 
         # Make the API call to create the scene
         result = self._request('POST', '/resource/scene', scene_data)

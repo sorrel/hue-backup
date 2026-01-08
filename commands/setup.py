@@ -223,6 +223,8 @@ def help_command():
                 ("mappings", "View all configured mappings"),
                 ("program-button <switch> <btn>", "Programme button actions on switches (bridge-native)"),
                 ("switch-info <sensor_id>", "Detailed info for one switch (cached)"),
+                ("duplicate-scene <scene> <name>", "Duplicate a scene with modifications"),
+                ("modify-scenes -r <room>", "Modify multiple scenes in bulk"),
             ]
         ),
         CommandSection(
