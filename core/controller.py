@@ -445,7 +445,10 @@ class HueController:
             # Build config with battery data
             config_data = {}
             if battery_level is not None:
-                config_data['battery'] = battery_level
+                # Convert battery_level from 0-255 scale to 0-100 percentage
+                # The Hue Bridge v2 API returns battery as 8-bit value (0-255)
+                battery_percentage = round((battery_level / 255) * 100)
+                config_data['battery'] = battery_percentage
             if battery_state is not None:
                 config_data['battery_state'] = battery_state
 
