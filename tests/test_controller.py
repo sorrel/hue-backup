@@ -110,7 +110,7 @@ class TestBatteryData:
                     {
                         'id': 'power1',
                         'power_state': {
-                            'battery_level': 85,
+                            'battery_level': 217,
                             'battery_state': 'normal'
                         }
                     }
@@ -164,7 +164,7 @@ class TestBatteryData:
 
         sensors = controller.get_sensors()
 
-        assert sensors['18']['config']['battery'] == 25
+        assert sensors['18']['config']['battery'] == 10
         assert sensors['18']['config']['battery_state'] == 'low'
 
     def test_get_sensors_battery_state_critical(self):
@@ -207,7 +207,7 @@ class TestBatteryData:
 
         sensors = controller.get_sensors()
 
-        assert sensors['18']['config']['battery'] == 5
+        assert sensors['18']['config']['battery'] == 2
         assert sensors['18']['config']['battery_state'] == 'critical'
 
     @patch('core.controller.HueController._request')
@@ -254,7 +254,7 @@ class TestBatteryData:
 
         # Verify API was called for battery data
         mock_request.assert_called_with('GET', '/resource/device_power/power1')
-        assert sensors['18']['config']['battery'] == 90
+        assert sensors['18']['config']['battery'] == 35
         assert sensors['18']['config']['battery_state'] == 'normal'
 
     def test_get_sensors_no_battery_data(self):
