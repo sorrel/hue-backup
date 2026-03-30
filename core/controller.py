@@ -49,7 +49,9 @@ class HueController:
         self.button_mappings = self.config.get('button_mappings', {})
         self.last_button_states = {}
         self.session = requests.Session()
-        self.session.verify = False  # Accept self-signed certificate
+        # Hue Bridge uses a self-signed TLS certificate; verification must be disabled.
+        # This is intentional and documented by Philips. Warning suppression is at module level.
+        self.session.verify = False  # nosec B501
         self.use_cache = use_cache
 
         # Cache for v2 resources (memory)
@@ -213,13 +215,13 @@ class HueController:
 
         try:
             if method == 'GET':
-                response = self.session.get(url, headers=headers, timeout=5, verify=False)
+                response = self.session.get(url, headers=headers, timeout=5)
             elif method == 'PUT':
-                response = self.session.put(url, headers=headers, json=data, timeout=5, verify=False)
+                response = self.session.put(url, headers=headers, json=data, timeout=5)
             elif method == 'POST':
-                response = self.session.post(url, headers=headers, json=data, timeout=5, verify=False)
+                response = self.session.post(url, headers=headers, json=data, timeout=5)
             elif method == 'DELETE':
-                response = self.session.delete(url, headers=headers, timeout=5, verify=False)
+                response = self.session.delete(url, headers=headers, timeout=5)
             else:
                 return None
 
