@@ -5,8 +5,10 @@ Handles bridge discovery, link button authentication, and credential management
 from 1Password Environments via .env file (mounted by 1Password desktop app).
 """
 
+import ipaddress
 import os
 import json
+import re
 from pathlib import Path
 
 import click
@@ -102,6 +104,23 @@ def select_bridge_interactive(bridges: list[dict]) -> str | None:
         return None
 
 
+def _validate_bridge_ip(bridge_ip: str) -> bool:
+    """Validate that bridge_ip is a valid IPv4 address or local hostname.
+
+    Prevents SSRF by ensuring only valid addresses reach the HTTP request.
+    """
+    # Allow valid IPv4/IPv6 addresses
+    try:
+        ipaddress.ip_address(bridge_ip)
+        return True
+    except ValueError:
+        pass
+
+    # Allow simple hostnames (letters, digits, hyphens, dots — no slashes or query strings)
+    hostname_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'
+    return bool(re.match(hostname_pattern, bridge_ip))
+
+
 def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli") -> str | None:
     """Create new API user via link button authentication.
 
@@ -115,6 +134,10 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
     Returns:
         API token/username if successful, None otherwise
     """
+    if not _validate_bridge_ip(bridge_ip):
+        click.echo(f"Error: Invalid bridge IP address: '{bridge_ip}'", err=True)
+        return None
+
     url = f"https://{bridge_ip}/api"
     payload = {"devicetype": app_name}
 
@@ -135,10 +158,11 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
             click.echo(f"Waiting for button press... (attempt {attempt}/{max_attempts})")
 
             # Make POST request
+            # verify=False required: Hue Bridge uses a self-signed TLS certificate (nosec B501)
             response = requests.post(
                 url,
                 json=payload,
-                verify=False,  # Self-signed certificate
+                verify=False,  # nosec B501
                 timeout=35  # Allow time for button press
             )
 
@@ -258,6 +282,9 @@ def get_auth_credentials(interactive: bool = True) -> AuthCredentials | None:
         click.echo()
         if click.confirm("Enter bridge IP manually?", default=True):
             bridge_ip = click.prompt("Bridge IP address", type=str)
+            if not _validate_bridge_ip(bridge_ip):
+                click.echo(f"Error: '{bridge_ip}' is not a valid IP address or hostname.", err=True)
+                return None
         else:
             click.echo("Setup cancelled.")
             return None

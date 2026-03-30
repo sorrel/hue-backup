@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 import click
 
+# Root directory used to anchor file path validation
+_PROJECT_ROOT = Path(__file__).parent.parent
+
 from models.utils import extract_room_rids_from_behaviour, BUTTON_KEYS_OLD_FORMAT
 
 if TYPE_CHECKING:
@@ -17,6 +20,30 @@ if TYPE_CHECKING:
 
 # Constants
 SAVED_ROOMS_DIR = Path(__file__).parent.parent / 'saved-rooms'
+
+
+def _validate_saved_room_path(file_path: str) -> Path | None:
+    """Validate that a file path is safe to open as a saved room file.
+
+    Checks:
+    - Path ends with .json
+    - Resolved path does not escape the project root directory
+
+    Returns the resolved Path if valid, None otherwise.
+    """
+    path = Path(file_path).resolve()
+
+    if path.suffix.lower() != '.json':
+        click.echo(f"Error: File must be a .json file: {file_path}", err=True)
+        return None
+
+    try:
+        path.relative_to(_PROJECT_ROOT.resolve())
+    except ValueError:
+        click.echo(f"Error: File must be within the project directory: {file_path}", err=True)
+        return None
+
+    return path
 
 
 def save_room_configuration(controller: 'HueController', room_name: str) -> str | None:
@@ -136,9 +163,13 @@ def diff_room_configuration(controller: 'HueController', saved_file_path: str, v
         click.echo("Error: diff_room_configuration requires cache to be loaded.")
         return None
 
+    validated_path = _validate_saved_room_path(saved_file_path)
+    if not validated_path:
+        return None
+
     try:
         # Load saved configuration
-        with open(saved_file_path, 'r') as f:
+        with open(validated_path, 'r') as f:
             saved = json.load(f)
 
         # Get current configuration for the same room
@@ -579,9 +610,13 @@ def restore_room_configuration(controller: 'HueController', saved_file_path: str
     Returns:
         True if successful, False otherwise
     """
+    validated_path = _validate_saved_room_path(saved_file_path)
+    if not validated_path:
+        return False
+
     try:
         # Load saved configuration
-        with open(saved_file_path, 'r') as f:
+        with open(validated_path, 'r') as f:
             saved = json.load(f)
 
         room_name = saved['summary']['room_name']
