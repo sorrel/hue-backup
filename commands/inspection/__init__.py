@@ -8,7 +8,7 @@ Structure:
 - scenes.py: Scene inspection commands (1 command)
 - status.py: Status and overview commands (3 commands)
 - devices.py: Device listing commands (4 commands)
-- switches.py: Switch inspection commands (6 commands)
+- switches.py: Switch inspection commands (5 commands)
 - locations.py: Location (rooms/zones) inspection with lights and scenes (1 command)
 """
 
@@ -39,7 +39,6 @@ from .switches import (
     switches_command,
     debug_buttons_command,
     button_data_command,
-    bridge_auto_command,
     switch_status_command,
     switch_info_command,
 )
@@ -86,7 +85,6 @@ __all__ = [
     'switches_command',
     'debug_buttons_command',
     'button_data_command',
-    'bridge_auto_command',
     'switch_status_command',
     'switch_info_command',
 

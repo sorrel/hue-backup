@@ -2,11 +2,13 @@
 
 A Python CLI for programming Philips Hue switches and inspecting the Hue setup. Designed to be used by AI assistants (like Claude Code) as a local tool for home automation, but also useful on the command line.
 
-**Primary use case:** Map button presses on physical Hue switches to scene activations. You can back-up and restore room configurations, so you can change the lights seasonally.
+**Primary use case:** Back-up and restore room configurations, so you can change the lights seasonally.
 
-**Not a general light controller** - use the Hue app for that. This tool focuses on switch, zone and room programming, not day to day light controls. Think of it as a terraform for the Hue lighting system.
+**Not a general light controller** - use the Hue app for that. This tool focuses on switch, zone and room programming, not light on/off. Think of it as a terraform for the Hue lighting system.
 
 ## Quick Start
+
+Note: this was written for CLI use on a Mac; it is untested on other systems.
 
 ```bash
 # Install dependencies (includes dev dependencies for testing)
@@ -171,44 +173,45 @@ All commands support `-h` for help.
 
 ## Authentication
 
-The tool tries these in order:
+Credentials are managed via **1Password Environments** for maximum security.
 
-1. **1Password** - If `op` CLI available, reads from vault (see below)
-2. **Local config** - `~/.hue_backup/config.json`
-3. **Interactive** - Prompts to run `configure`
+### Setup Steps
 
-### Option A: Interactive Setup (Recommended)
+1. **Create API credentials** (first time only):
+   ```bash
+   uv run python hue_backup.py configure
+   ```
+   This discovers your bridge, guides you through link button auth, and displays credentials.
 
-```bash
-uv run python hue_backup.py configure
-```
+2. **Add to 1Password Environment:**
+   - Open 1Password desktop app
+   - Go to **Developer** → **View Environments**
+   - Create/open "Hue Control" environment
+   - Add two variables:
+     - `HUE_BRIDGE_IP` = your bridge IP (e.g., 192.168.1.100)
+     - `HUE_API_TOKEN` = your API token from step 1
+   - Go to **Destinations** tab → **Configure local .env file**
+   - Set path to: `/path/to/hue-control/.env`
+   - Click **Mount .env file**
 
-Discovers your bridge, guides you through link button auth, saves credentials.
+3. **Test connection:**
+   ```bash
+   uv run python hue_backup.py setup
+   ```
 
-### Option B: 1Password
+### Why 1Password Environments?
 
-Add to your 1Password vault:
-- **Item:** "Hue" (in "Private" vault)
-- **Fields:** `bridge-ip` and `API-token`
+- **Secure:** Secrets never written to disk as plaintext (mounted via UNIX pipes)
+- **Scoped:** Only exposes the specific variables you configure
+- **Simple:** No CLI subprocess calls that could be intercepted
+- **Team-friendly:** Share environments with collaborators
 
-Override defaults with environment variables:
-```bash
-export HUE_1PASSWORD_VAULT="Work"
-export HUE_1PASSWORD_ITEM="MyBridge"
-```
+### How It Works
 
-### Option C: Manual Config
-
-```bash
-mkdir -p ~/.hue_backup
-cat > ~/.hue_backup/config.json << 'EOF'
-{
-  "bridge_ip": "192.168.1.100",
-  "api_token": "your-api-token-here"
-}
-EOF
-chmod 600 ~/.hue_backup/config.json
-```
+- The `.env` file is mounted by 1Password (not a real file on disk)
+- `python-dotenv` loads variables at startup
+- Your credentials are automatically available
+- `.env` file is gitignored to prevent accidental commits
 
 ## Using with AI Assistants
 
@@ -249,8 +252,8 @@ commands/                # CLI commands
       ├── scenes.py      # Scene inspection (1 command)
       ├── status.py      # Status/overview (3 commands)
       ├── devices.py     # Device listing (4 commands)
-      └── switches.py    # Switch inspection (6 commands)
-tests/                   # 127 tests, all mocked
+      └── switches.py    # Switch inspection (5 commands)
+tests/                   # 144 tests, all mocked
   ├── test_button_config.py  # Button configuration tests
   ├── test_inspection.py     # Inspection command tests
   └── test_utils.py      # Utility function tests
@@ -264,7 +267,7 @@ cache/                   # Local cache (gitignored)
 # Install dependencies with dev extras (includes pytest)
 uv sync --extra dev
 
-# Run all tests (127 total, all passing)
+# Run all tests (140 total, all passing)
 uv run pytest -v
 
 # Run specific test file
@@ -273,12 +276,12 @@ uv run pytest tests/test_inspection.py -v
 ```
 
 **Test Coverage:**
-- Over 100 tests
+- 140 tests
 - All tests use mocks (no actual API calls or file writes)
 - Test files:
   - `test_structure.py` - Directory and file structure
   - `test_utils.py` - Display width, button events, lookups
-  - `test_config.py` - Configuration loading, 1Password
+  - `test_config.py` - Configuration loading
   - `test_cache.py` - Cache management
   - `test_controller.py` - Controller delegation
   - `test_inspection.py` - Inspection commands
@@ -344,8 +347,10 @@ uv run python hue_backup.py configure --reconfigure  # Start fresh
 uv run python hue_backup.py reload  # Force cache refresh
 ```
 
-**1Password not working?**
-Falls back to local config automatically. Check `op signin` if you want 1Password.
+**1Password Environment not loading?**
+- Verify .env file is mounted in 1Password desktop app
+- Check variables are named correctly: `HUE_BRIDGE_IP` and `HUE_API_TOKEN`
+- Ensure .env file path matches your project directory
 
 ## Notes
 

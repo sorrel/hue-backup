@@ -10,11 +10,40 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 import click
 
+# Root directory used to anchor file path validation
+_PROJECT_ROOT = Path(__file__).parent.parent
+
+from models.utils import extract_room_rids_from_behaviour, BUTTON_KEYS_OLD_FORMAT
+
 if TYPE_CHECKING:
     from hue_backup import HueController
 
 # Constants
 SAVED_ROOMS_DIR = Path(__file__).parent.parent / 'saved-rooms'
+
+
+def _validate_saved_room_path(file_path: str) -> Path | None:
+    """Validate that a file path is safe to open as a saved room file.
+
+    Checks:
+    - Path ends with .json
+    - Resolved path does not escape the project root directory
+
+    Returns the resolved Path if valid, None otherwise.
+    """
+    path = Path(file_path).resolve()
+
+    if path.suffix.lower() != '.json':
+        click.echo(f"Error: File must be a .json file: {file_path}", err=True)
+        return None
+
+    try:
+        path.relative_to(_PROJECT_ROOT.resolve())
+    except ValueError:
+        click.echo(f"Error: File must be within the project directory: {file_path}", err=True)
+        return None
+
+    return path
 
 
 def save_room_configuration(controller: 'HueController', room_name: str) -> str | None:
@@ -73,36 +102,10 @@ def save_room_configuration(controller: 'HueController', room_name: str) -> str 
 
     # Extract behaviours targeting this room
     behaviours = cache.get('behaviours', [])
-    room_behaviours = []
-
-    for b in behaviours:
-        config = b.get('configuration', {})
-        where_rids = []
-
-        # Extract all 'where' references
-        if 'where' in config:
-            for w in config['where']:
-                if w.get('group', {}).get('rtype') == 'room':
-                    where_rids.append(w.get('group', {}).get('rid'))
-
-        # Check button-specific where (old format)
-        for key in ['button1', 'button2', 'button3', 'button4', 'rotary']:
-            if key in config and 'where' in config[key]:
-                for w in config[key]['where']:
-                    if w.get('group', {}).get('rtype') == 'room':
-                        where_rids.append(w.get('group', {}).get('rid'))
-
-        # Check new format
-        if 'buttons' in config:
-            for button_rid, button_config in config['buttons'].items():
-                if 'where' in button_config:
-                    for w in button_config['where']:
-                        if w.get('group', {}).get('rtype') == 'room':
-                            where_rids.append(w.get('group', {}).get('rid'))
-
-        # If this behaviour targets our room, include it
-        if room_id in where_rids:
-            room_behaviours.append(b)
+    room_behaviours = [
+        b for b in behaviours
+        if room_id in extract_room_rids_from_behaviour(b.get('configuration', {}))
+    ]
 
     # Create saved configuration
     saved_config = {
@@ -160,9 +163,13 @@ def diff_room_configuration(controller: 'HueController', saved_file_path: str, v
         click.echo("Error: diff_room_configuration requires cache to be loaded.")
         return None
 
+    validated_path = _validate_saved_room_path(saved_file_path)
+    if not validated_path:
+        return None
+
     try:
         # Load saved configuration
-        with open(saved_file_path, 'r') as f:
+        with open(validated_path, 'r') as f:
             saved = json.load(f)
 
         # Get current configuration for the same room
@@ -189,33 +196,10 @@ def diff_room_configuration(controller: 'HueController', saved_file_path: str, v
         # Get current data for comparison
         current_lights = [l for l in cache.get('lights', []) if l.get('owner', {}).get('rid') in device_rids]
         current_scenes = [s for s in cache.get('scenes', []) if s.get('group', {}).get('rid') == room_id]
-        current_behaviours = []
-
-        # Extract current behaviours for this room (same logic as save)
-        for b in cache.get('behaviours', []):
-            config = b.get('configuration', {})
-            where_rids = []
-
-            if 'where' in config:
-                for w in config['where']:
-                    if w.get('group', {}).get('rtype') == 'room':
-                        where_rids.append(w.get('group', {}).get('rid'))
-
-            for key in ['button1', 'button2', 'button3', 'button4', 'rotary']:
-                if key in config and 'where' in config[key]:
-                    for w in config[key]['where']:
-                        if w.get('group', {}).get('rtype') == 'room':
-                            where_rids.append(w.get('group', {}).get('rid'))
-
-            if 'buttons' in config:
-                for button_rid, button_config in config['buttons'].items():
-                    if 'where' in button_config:
-                        for w in button_config['where']:
-                            if w.get('group', {}).get('rtype') == 'room':
-                                where_rids.append(w.get('group', {}).get('rid'))
-
-            if room_id in where_rids:
-                current_behaviours.append(b)
+        current_behaviours = [
+            b for b in cache.get('behaviours', [])
+            if room_id in extract_room_rids_from_behaviour(b.get('configuration', {}))
+        ]
 
         # Create scene ID -> name lookup for verbose output
         scene_lookup = {}
@@ -404,8 +388,8 @@ def _diff_button_configuration(saved_config: dict, current_config: dict, verbose
     if scene_lookup is None:
         scene_lookup = {}
 
-    # Check old format buttons (button1, button2, button3, button4)
-    for button_key in ['button1', 'button2', 'button3', 'button4', 'rotary']:
+    # Check old format buttons (button1, button2, button3, button4, rotary)
+    for button_key in BUTTON_KEYS_OLD_FORMAT:
         saved_button = saved_config.get(button_key, {})
         current_button = current_config.get(button_key, {})
 
@@ -626,9 +610,13 @@ def restore_room_configuration(controller: 'HueController', saved_file_path: str
     Returns:
         True if successful, False otherwise
     """
+    validated_path = _validate_saved_room_path(saved_file_path)
+    if not validated_path:
+        return False
+
     try:
         # Load saved configuration
-        with open(saved_file_path, 'r') as f:
+        with open(validated_path, 'r') as f:
             saved = json.load(f)
 
         room_name = saved['summary']['room_name']

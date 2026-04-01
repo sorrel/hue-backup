@@ -4,6 +4,8 @@ This module contains helper functions used across the application:
 - display_width: Calculate terminal display width for Unicode/emojis
 - decode_button_event: Convert button event codes to human-readable format
 - create_name_lookup: Build ID-to-name mappings for resources
+- get_resource_name: Extract name from resource metadata
+- extract_room_rids_from_behaviour: Extract room RIDs from behaviour config
 - get_controller: Helper to create fresh connected controllers
 - get_cache_controller: Helper to create cache-enabled controllers
 - similarity_score: Canonical fuzzy string matching algorithm
@@ -109,6 +111,73 @@ def create_name_lookup(resources: list[dict]) -> dict[str, str]:
         Dict mapping resource ID to name
     """
     return {r['id']: r.get('metadata', {}).get('name', 'Unknown') for r in resources}
+
+
+def get_resource_name(resource: dict, default: str = 'Unknown') -> str:
+    """Extract name from a Hue resource's metadata.
+
+    This is the canonical way to get a resource name across the application.
+    Replaces the common pattern: resource.get('metadata', {}).get('name', 'Unknown')
+
+    Args:
+        resource: A v2 API resource dict with optional 'metadata.name' field
+        default: Default value if name not found
+
+    Returns:
+        The resource name, or the default value
+    """
+    return resource.get('metadata', {}).get('name', default)
+
+
+# Button keys for old-format behaviour configurations
+BUTTON_KEYS_OLD_FORMAT = ('button1', 'button2', 'button3', 'button4', 'rotary')
+
+
+def extract_room_rids_from_behaviour(config: dict, rtype_filter: str | None = 'room') -> list[str]:
+    """Extract room/zone RIDs from a behaviour configuration.
+
+    This is the canonical way to extract location references from behaviour configs.
+    Handles all format variations:
+    - Top-level 'where' (new format)
+    - 'button1.where', 'button2.where', etc. (old format)
+    - 'rotary.where' (tap dials)
+    - 'buttons[rid].where' (new format with buttons dict)
+
+    Args:
+        config: The 'configuration' dict from a behaviour instance
+        rtype_filter: Filter by resource type ('room', 'zone', or None for all)
+
+    Returns:
+        List of unique RIDs found in the configuration
+    """
+    rids = []
+
+    def extract_rids_from_where_list(where_list: list[dict]) -> None:
+        """Extract RIDs from a where list, applying optional rtype filter."""
+        for location in where_list:
+            group = location.get('group', {})
+            rid = group.get('rid')
+            if rid:
+                if rtype_filter is None or group.get('rtype') == rtype_filter:
+                    if rid not in rids:
+                        rids.append(rid)
+
+    # Top-level where (new format)
+    if 'where' in config:
+        extract_rids_from_where_list(config['where'])
+
+    # Old format: check button1.where, button2.where, etc.
+    for key in BUTTON_KEYS_OLD_FORMAT:
+        if key in config and 'where' in config[key]:
+            extract_rids_from_where_list(config[key]['where'])
+
+    # New format with buttons dict
+    if 'buttons' in config:
+        for button_rid, button_config in config['buttons'].items():
+            if 'where' in button_config:
+                extract_rids_from_where_list(button_config['where'])
+
+    return rids
 
 
 def get_controller():

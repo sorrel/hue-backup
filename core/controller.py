@@ -12,9 +12,9 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from core.config import load_config, save_config, load_from_1password
+from core.config import load_config, save_config
 from core.cache import reload_cache, is_cache_stale, ensure_fresh_cache, get_cache_info
-from models.utils import create_name_lookup
+from models.utils import create_name_lookup, extract_room_rids_from_behaviour
 
 # Button labels for wall controls
 BUTTON_LABELS_EXTENDED = {
@@ -49,7 +49,9 @@ class HueController:
         self.button_mappings = self.config.get('button_mappings', {})
         self.last_button_states = {}
         self.session = requests.Session()
-        self.session.verify = False  # Accept self-signed certificate
+        # Hue Bridge uses a self-signed TLS certificate; verification must be disabled.
+        # This is intentional and documented by Philips. Warning suppression is at module level.
+        self.session.verify = False  # nosec B501
         self.use_cache = use_cache
 
         # Cache for v2 resources (memory)
@@ -94,6 +96,27 @@ class HueController:
         setattr(self, resource_type, result if result else [])
         return getattr(self, resource_type)
 
+    def _get_cache_items(self, resource_type: str) -> tuple[dict, list] | None:
+        """Get cache dict and items list for a resource type.
+
+        This helper extracts common validation from cache entry methods.
+
+        Args:
+            resource_type: The cache key (e.g., 'lights', 'scenes', 'behaviours')
+
+        Returns:
+            Tuple of (cache_dict, items_list), or None if cache unavailable
+        """
+        if not self.use_cache:
+            return None
+
+        cache = self.config.get('cache', {})
+        if not cache:
+            return None
+
+        items = cache.get(resource_type, [])
+        return cache, items
+
     def _update_cache_entry(self, resource_type: str, resource_id: str, new_data: dict) -> bool:
         """Update a single entry in the persistent cache (write-through cache pattern).
 
@@ -109,31 +132,24 @@ class HueController:
         Returns:
             True if cache was updated, False if cache doesn't exist or resource not found
         """
-        if not self.use_cache:
+        result = self._get_cache_items(resource_type)
+        if not result:
             return False
 
-        cache = self.config.get('cache', {})
-        if not cache:
-            return False
-
-        items = cache.get(resource_type, [])
+        cache, items = result
         if not items:
             return False
 
         # Find and update the resource
-        updated = False
         for i, item in enumerate(items):
             if item.get('id') == resource_id:
                 items[i] = new_data
-                updated = True
-                break
+                cache[resource_type] = items
+                self.config['cache'] = cache
+                save_config(self.config)
+                return True
 
-        if updated:
-            cache[resource_type] = items
-            self.config['cache'] = cache
-            save_config(self.config)
-
-        return updated
+        return False
 
     def _add_cache_entry(self, resource_type: str, new_data: dict) -> bool:
         """Add a new entry to the persistent cache (for POST/create operations).
@@ -145,14 +161,11 @@ class HueController:
         Returns:
             True if cache was updated, False if cache doesn't exist
         """
-        if not self.use_cache:
+        result = self._get_cache_items(resource_type)
+        if not result:
             return False
 
-        cache = self.config.get('cache', {})
-        if not cache:
-            return False
-
-        items = cache.get(resource_type, [])
+        cache, items = result
         items.append(new_data)
 
         cache[resource_type] = items
@@ -171,14 +184,11 @@ class HueController:
         Returns:
             True if cache was updated, False if cache doesn't exist or resource not found
         """
-        if not self.use_cache:
+        result = self._get_cache_items(resource_type)
+        if not result:
             return False
 
-        cache = self.config.get('cache', {})
-        if not cache:
-            return False
-
-        items = cache.get(resource_type, [])
+        cache, items = result
         if not items:
             return False
 
@@ -329,58 +339,21 @@ class HueController:
         return self._get_cached_resource('_zones_cache', 'zones', '/resource/zone')
 
     @staticmethod
-    def _extract_where_lists_from_config(config: dict) -> list[list[dict]]:
-        """Extract all 'where' lists from a behaviour configuration.
-
-        Handles multiple locations where room info can be stored:
-        - Top-level 'where' (new format)
-        - 'button1.where' (old format)
-        - 'rotary.where' (dial rotary)
-        - 'buttons[rid].where' (new format with buttons dict)
-
-        Returns:
-            List of 'where' lists found in the config
-        """
-        where_lists = []
-
-        # Top-level where (new format)
-        if 'where' in config:
-            where_lists.append(config['where'])
-
-        # Old format: check button1.where
-        if 'button1' in config and 'where' in config['button1']:
-            where_lists.append(config['button1']['where'])
-
-        # Dial rotary.where
-        if 'rotary' in config and 'where' in config['rotary']:
-            where_lists.append(config['rotary']['where'])
-
-        # New format with buttons dict: check each button's where field
-        if 'buttons' in config:
-            for button_rid, button_config in config['buttons'].items():
-                if 'where' in button_config:
-                    where_lists.append(button_config['where'])
-
-        return where_lists
-
-    def _extract_rooms_from_where_lists(self, where_lists: list[list[dict]], room_lookup: dict[str, str]) -> list[str]:
-        """Extract unique room names from where lists.
+    def _get_room_names_from_rids(room_rids: list[str], room_lookup: dict[str, str]) -> list[str]:
+        """Look up room names from RIDs.
 
         Args:
-            where_lists: List of 'where' lists from behaviour config
+            room_rids: List of room RIDs
             room_lookup: dict mapping room IDs to names
 
         Returns:
-            List of unique room names
+            List of unique room names (preserving order)
         """
         room_names = []
-        for where_list in where_lists:
-            for location in where_list:
-                room_rid = location.get('group', {}).get('rid')
-                if room_rid:
-                    room_name = room_lookup.get(room_rid, '')
-                    if room_name and room_name not in room_names:
-                        room_names.append(room_name)
+        for rid in room_rids:
+            room_name = room_lookup.get(rid, '')
+            if room_name and room_name not in room_names:
+                room_names.append(room_name)
         return room_names
 
     def reload_cache(self) -> bool:
@@ -474,6 +447,7 @@ class HueController:
             # Build config with battery data
             config_data = {}
             if battery_level is not None:
+                # API already returns 0-100 percentage
                 config_data['battery'] = battery_level
             if battery_state is not None:
                 config_data['battery_state'] = battery_state
@@ -507,9 +481,9 @@ class HueController:
             if not device_rid:
                 continue
 
-            # Extract rooms using helper methods
-            where_lists = self._extract_where_lists_from_config(config)
-            room_names = self._extract_rooms_from_where_lists(where_lists, room_lookup)
+            # Extract rooms using helper
+            room_rids = extract_room_rids_from_behaviour(config)
+            room_names = self._get_room_names_from_rids(room_rids, room_lookup)
 
             # Add to device_rooms, avoiding duplicates
             if device_rid not in device_rooms:
@@ -753,7 +727,8 @@ class HueController:
         return result is not None
 
     def create_scene(self, name: str, group_rid: str, actions: list[dict],
-                     auto_dynamic: bool = True, speed: float = 0.6, group_rtype: str = "zone") -> str | None:
+                     auto_dynamic: bool = True, speed: float = 0.6, group_rtype: str = "zone",
+                     palette: dict | None = None) -> str | None:
         """Create a new scene (write-through cache).
 
         Args:
@@ -763,6 +738,7 @@ class HueController:
             auto_dynamic: Enable auto-dynamic palette cycling (default: True)
             speed: Dynamic effect speed 0.0 - 1.0 (default: 0.6)
             group_rtype: Group type - 'zone' or 'room' (default: 'zone')
+            palette: Optional palette data (colour, dimming, effects)
 
         Returns:
             New scene ID if successful, None if failed
@@ -775,6 +751,10 @@ class HueController:
             "auto_dynamic": auto_dynamic,
             "speed": speed,
         }
+
+        # Include palette if provided
+        if palette is not None:
+            scene_data["palette"] = palette
 
         # Make the API call to create the scene
         result = self._request('POST', '/resource/scene', scene_data)

@@ -8,7 +8,7 @@ import click
 import json
 import traceback
 from datetime import datetime
-from models.utils import display_width, decode_button_event, create_name_lookup, get_cache_controller
+from models.utils import display_width, decode_button_event, create_name_lookup, get_cache_controller, extract_room_rids_from_behaviour
 from core.controller import HueController
 from .helpers import (
     BUTTON_LABELS,
@@ -243,9 +243,9 @@ def button_data_command(room: str, auto_reload: bool):
                         device_id_v1 = device_id_v1.split('/')[-1]
                     break
 
-            # Get room(s) from the behaviour configuration using helper methods
-            where_lists = cache_controller._extract_where_lists_from_config(config)
-            switch_rooms = cache_controller._extract_rooms_from_where_lists(where_lists, rooms)
+            # Get room(s) from the behaviour configuration
+            room_rids = extract_room_rids_from_behaviour(config)
+            switch_rooms = [rooms.get(rid, '') for rid in room_rids if rooms.get(rid)]
 
             # Filter by room if specified - check both device name and room name
             if room:
@@ -369,149 +369,6 @@ def button_data_command(room: str, auto_reload: bool):
 
     except Exception as e:
         click.echo(f"Error getting button programs: {e}")
-        traceback.print_exc()
-
-
-@click.command()
-@click.option('--table', '-t', is_flag=True, help='Display in table format')
-@click.option('--auto-reload/--no-auto-reload', default=True, help='Auto-reload stale cache (default: yes)')
-def bridge_auto_command(table: bool, auto_reload: bool):
-    """Show bridge-configured button automations (old format).
-
-    This displays the button configurations from the Hue Bridge itself,
-    not the local mappings from this CLI tool. Uses cached data.
-
-    DEPRECATED: Use 'button-data' instead for better output.
-    """
-    cache_controller = get_cache_controller(auto_reload)
-    if not cache_controller:
-        return
-
-    try:
-        devices = cache_controller.get_devices()
-        behaviours = cache_controller.get_behaviour_instances()
-        scenes = cache_controller.get_scenes()
-
-        # Create scene lookup by id
-        scene_lookup = create_name_lookup(scenes)
-
-        # Map devices to their behaviour instances
-        device_behaviours = {}
-
-        for behaviour in behaviours:
-            config = behaviour.get('configuration', {})
-            device_ref = config.get('device', {})
-            device_rid = device_ref.get('rid')
-
-            if not device_rid:
-                continue
-
-            # Find the device
-            device_name = None
-            device_id_v1 = None
-            for device in devices:
-                if device['id'] == device_rid:
-                    device_name = device.get('metadata', {}).get('name', 'Unknown')
-                    device_id_v1 = device.get('id_v1', '')
-                    if device_id_v1.startswith('/sensors/'):
-                        device_id_v1 = device_id_v1.split('/')[-1]
-                    break
-
-            if not device_name:
-                continue
-
-            if device_rid not in device_behaviours:
-                device_behaviours[device_rid] = {
-                    'name': device_name,
-                    'id_v1': device_id_v1,
-                    'buttons': []
-                }
-
-            # Parse button configurations
-            for button_key in ['button1', 'button2', 'button3', 'button4']:
-                if button_key not in config:
-                    continue
-
-                button_config = config[button_key]
-                button_num = button_key.replace('button', '')
-
-                # Check for short release actions
-                if 'on_short_release' in button_config:
-                    action = button_config['on_short_release']
-                    action_desc = []
-
-                    # Scene cycle
-                    if 'scene_cycle_extended' in action:
-                        slots = action['scene_cycle_extended'].get('slots', [])
-                        scene_names = []
-                        for slot in slots[:5]:  # Show first 5
-                            if slot and len(slot) > 0:
-                                scene_rid = slot[0].get('action', {}).get('recall', {}).get('rid')
-                                if scene_rid:
-                                    scene_names.append(scene_lookup.get(scene_rid, scene_rid[:8]))
-                        if scene_names:
-                            action_desc.append(f"Cycle: {' → '.join(scene_names)}")
-                            if len(slots) > 5:
-                                action_desc.append(f"(+{len(slots)-5} more)")
-
-                    # Time-based
-                    if 'time_based_extended' in action:
-                        action_desc.append("Time-based scenes")
-
-                    # Single recall
-                    if 'recall_single_extended' in action:
-                        actions_list = action['recall_single_extended'].get('actions', [])
-                        if actions_list and len(actions_list) > 0:
-                            scene_rid = actions_list[0].get('action', {}).get('recall', {}).get('rid')
-                            if scene_rid:
-                                action_desc.append(f"Scene: {scene_lookup.get(scene_rid, scene_rid[:8])}")
-
-                    if action_desc:
-                        device_behaviours[device_rid]['buttons'].append({
-                            'button': f'Button {button_num} (short)',
-                            'action': ' | '.join(action_desc)
-                        })
-
-                # Check for long press
-                if 'on_long_press' in button_config:
-                    action = button_config['on_long_press'].get('action', '')
-                    if action:
-                        device_behaviours[device_rid]['buttons'].append({
-                            'button': f'Button {button_num} (long)',
-                            'action': action.replace('_', ' ').title()
-                        })
-
-        # Display results
-        if not device_behaviours:
-            click.echo("No button-based automations found.")
-            return
-
-        if table:
-            click.echo()
-            click.secho("Bridge-Configured Button Automations (v2 API)", fg='cyan', bold=True)
-            click.echo()
-
-            for device_rid, data in sorted(device_behaviours.items(), key=lambda x: x[1]['name']):
-                click.secho(f"{data['name']} (ID: {data['id_v1']})", fg='green', bold=True)
-                click.echo("─" * 100)
-
-                for btn_config in data['buttons']:
-                    click.echo(f"  {btn_config['button']:20} → {btn_config['action']}")
-
-                click.echo()
-        else:
-            click.echo("\n=== Bridge-Configured Button Automations (v2 API) ===\n")
-
-            for device_rid, data in sorted(device_behaviours.items(), key=lambda x: x[1]['name']):
-                click.secho(f"• {data['name']} (ID: {data['id_v1']})", fg='green')
-
-                for btn_config in data['buttons']:
-                    click.echo(f"    {btn_config['button']} → {btn_config['action']}")
-
-                click.echo()
-
-    except Exception as e:
-        click.echo(f"Error getting bridge automations: {e}")
         traceback.print_exc()
 
 
