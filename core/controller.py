@@ -4,7 +4,9 @@ This module contains the main controller class that handles all communication
 with the Philips Hue Bridge using API v2.
 """
 
+import ssl
 import requests
+from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 import click
 import json
@@ -30,6 +32,22 @@ BUTTON_LABELS_EXTENDED = {
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 
+class _PermissiveSSLAdapter(HTTPAdapter):
+    """HTTPAdapter that disables SSL verification at the context level.
+
+    Required for urllib3 v2+ where session.verify=False alone no longer
+    reliably bypasses SSL errors with self-signed certificates (e.g. Hue Bridge).
+    """
+
+    def init_poolmanager(self, *args, **kwargs):
+        # _create_unverified_context creates a context with no CA bundle loaded,
+        # which is necessary for urllib3 v2+ where create_default_context() loads
+        # system CAs that cause verification failures even after setting CERT_NONE.
+        ctx = ssl._create_unverified_context()  # nosec B323
+        kwargs['ssl_context'] = ctx
+        return super().init_poolmanager(*args, **kwargs)
+
+
 class HueController:
     """Manages connection and operations with Philips Hue Bridge using API v2."""
 
@@ -51,7 +69,10 @@ class HueController:
         self.session = requests.Session()
         # Hue Bridge uses a self-signed TLS certificate; verification must be disabled.
         # This is intentional and documented by Philips. Warning suppression is at module level.
+        # urllib3 v2+ requires an explicit SSL context rather than relying solely on verify=False.
         self.session.verify = False  # nosec B501
+        adapter = _PermissiveSSLAdapter()
+        self.session.mount('https://', adapter)
         self.use_cache = use_cache
 
         # Cache for v2 resources (memory)
