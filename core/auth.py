@@ -9,6 +9,7 @@ import ipaddress
 import os
 import json
 import re
+import threading
 from pathlib import Path
 
 import click
@@ -214,6 +215,26 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
 
 
 
+def _load_dotenv_safe(timeout: float = 3.0) -> None:
+    """Load .env with a timeout to avoid blocking on 1Password named pipes."""
+    from dotenv import load_dotenv
+    import click
+    done = threading.Event()
+
+    def _load():
+        load_dotenv()
+        done.set()
+
+    threading.Thread(target=_load, daemon=True).start()
+    if not done.wait(timeout=timeout):
+        click.secho(
+            "⚠ Warning: .env file timed out — 1Password environment may not be mounted. "
+            "Bridge credentials unavailable.",
+            fg='yellow',
+            err=True,
+        )
+
+
 def load_auth_from_environment() -> AuthCredentials | None:
     """Load bridge IP and API token from environment variables.
 
@@ -223,6 +244,7 @@ def load_auth_from_environment() -> AuthCredentials | None:
     Returns:
         Dict with 'bridge_ip' and 'api_token', or None if not found
     """
+    _load_dotenv_safe()
     bridge_ip = os.getenv('HUE_BRIDGE_IP')
     api_token = os.getenv('HUE_API_TOKEN')
 
