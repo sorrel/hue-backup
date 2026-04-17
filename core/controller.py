@@ -32,6 +32,19 @@ BUTTON_LABELS_EXTENDED = {
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 
+def _make_unverified_ssl_context() -> ssl.SSLContext:
+    """Create an SSL context that skips certificate verification entirely.
+
+    Using SSLContext directly with explicit check_hostname=False and CERT_NONE
+    is more reliable than _create_unverified_context() on newer macOS/Python builds,
+    where the private helper may still load system CAs and enforce verification.
+    """
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # nosec B323
+    ctx.check_hostname = False  # Must be set before verify_mode
+    ctx.verify_mode = ssl.CERT_NONE  # nosec B501
+    return ctx
+
+
 class _PermissiveSSLAdapter(HTTPAdapter):
     """HTTPAdapter that disables SSL verification at the context level.
 
@@ -40,12 +53,12 @@ class _PermissiveSSLAdapter(HTTPAdapter):
     """
 
     def init_poolmanager(self, *args, **kwargs):
-        # _create_unverified_context creates a context with no CA bundle loaded,
-        # which is necessary for urllib3 v2+ where create_default_context() loads
-        # system CAs that cause verification failures even after setting CERT_NONE.
-        ctx = ssl._create_unverified_context()  # nosec B323
-        kwargs['ssl_context'] = ctx
+        kwargs['ssl_context'] = _make_unverified_ssl_context()
         return super().init_poolmanager(*args, **kwargs)
+
+    def proxy_manager_for(self, proxy, **proxy_kwargs):
+        proxy_kwargs['ssl_context'] = _make_unverified_ssl_context()
+        return super().proxy_manager_for(proxy, **proxy_kwargs)
 
 
 class HueController:
