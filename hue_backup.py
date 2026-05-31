@@ -75,7 +75,7 @@ def cli():
 
 Main focus: Programme scenes into switches and save/restore room configurations.
 
-Authentication: 1Password → Local config (~/.hue_backup/config.json) → Interactive setup
+Authentication: 1Password Environments (.env file) → Interactive setup
 Run 'configure' for first-time setup or 'setup' to check configuration.
 
 Use 'help' for a quick reference of all commands.
