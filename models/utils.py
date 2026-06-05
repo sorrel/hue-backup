@@ -293,7 +293,7 @@ def similarity_score(s1: str, s2: str) -> int:
     return 0
 
 
-def find_similar_strings(target: str, candidates: list[str], limit: int = 5) -> list[str]:
+def find_similar_strings(target: str, candidates: list[str], limit: int = 5, threshold: float = 0.0) -> list[str]:
     """Find similar strings using simple similarity scoring.
 
     Uses the canonical similarity_score() function for consistency across
@@ -303,6 +303,7 @@ def find_similar_strings(target: str, candidates: list[str], limit: int = 5) -> 
         target: The string to match against
         candidates: List of candidate strings to search
         limit: Maximum number of results to return
+        threshold: Minimum similarity score (0.0–1.0) to include a result
 
     Returns:
         List of similar strings, sorted by similarity score (most similar first)
@@ -311,7 +312,7 @@ def find_similar_strings(target: str, candidates: list[str], limit: int = 5) -> 
     scored = [(candidate, similarity_score(target, candidate)) for candidate in candidates]
 
     # Filter and sort
-    filtered = [(c, s) for c, s in scored if s > 0]
+    filtered = [(c, s) for c, s in scored if s > threshold]
     sorted_matches = sorted(filtered, key=lambda x: x[1], reverse=True)
 
     return [c for c, s in sorted_matches[:limit]]

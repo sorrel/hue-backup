@@ -5,8 +5,7 @@ These tests verify that inspection commands properly use cache instead of making
 direct API calls, and correctly handle v2 API list format (not dict).
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from click.testing import CliRunner
 from commands.inspection import lights_command, groups_command, status_command, switch_info_command
 

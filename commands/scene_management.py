@@ -3,7 +3,7 @@
 import click
 import copy
 from core.controller import HueController
-from models.utils import create_name_lookup, create_scene_reverse_lookup
+
 
 
 @click.command(name='duplicate-scene')
@@ -47,7 +47,6 @@ def duplicate_scene_command(source_scene, new_name, turn_on, turn_off, brightnes
     lights = controller.get_lights()
 
     # Create lookups
-    scene_reverse_lookup = create_scene_reverse_lookup(scenes)  # name (lowercase) -> ID
     light_reverse_lookup = {
         l.get('metadata', {}).get('name', '').lower(): l['id']
         for l in lights
@@ -55,7 +54,6 @@ def duplicate_scene_command(source_scene, new_name, turn_on, turn_off, brightnes
 
     # Find source scene (fuzzy match with optional zone filter)
     source_scene_lower = source_scene.lower()
-    source_id = None
     source_obj = None
 
     # Build candidate list (filter by zone if specified)
@@ -364,7 +362,6 @@ def modify_scenes_command(room, remove_light, turn_on, turn_off, brightness, yes
     target_group = matching_groups[0]
     group_rid = target_group['id']
     group_name = target_group.get('metadata', {}).get('name')
-    group_type = target_group.get('type', 'zone')
 
     # Filter scenes by this room/zone
     target_scenes = [s for s in scenes if s.get('group', {}).get('rid') == group_rid]

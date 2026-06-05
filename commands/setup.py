@@ -4,7 +4,6 @@ Setup and help commands for Hue Backup CLI.
 Contains custom Click group class for coloured help output and typo suggestions.
 """
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
