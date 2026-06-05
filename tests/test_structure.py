@@ -1,8 +1,5 @@
 """Test that the refactored structure is correct."""
 
-from pathlib import Path
-
-
 def test_directories_exist(project_root):
     """Test that all expected directories exist."""
     assert (project_root / "core").exists()

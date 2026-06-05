@@ -4,8 +4,6 @@ NOTE: These are READ-ONLY tests only, following the refactoring testing policy.
 No actual file writes are made during testing.
 """
 
-import pytest
-import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from core.config import (

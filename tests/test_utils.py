@@ -1,6 +1,5 @@
 """Tests for utility functions in models/utils.py"""
 
-import pytest
 from models.utils import display_width, decode_button_event, create_name_lookup
 
 

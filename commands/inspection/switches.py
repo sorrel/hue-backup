@@ -7,12 +7,10 @@ All inspection commands use cached data and can auto-reload stale cache.
 import click
 import json
 import traceback
-from datetime import datetime
 from models.utils import display_width, decode_button_event, create_name_lookup, get_cache_controller, extract_room_rids_from_behaviour
 from core.controller import HueController
 from .helpers import (
     BUTTON_LABELS,
-    SWITCH_EMOJIS,
     get_switch_emoji,
     format_timestamp,
     find_device_room,

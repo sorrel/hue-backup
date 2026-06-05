@@ -6,8 +6,7 @@ the corresponding functions in core modules, and that required
 utilities are properly imported.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from core.controller import HueController, BUTTON_LABELS_EXTENDED
 
 

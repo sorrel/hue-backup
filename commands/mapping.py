@@ -290,7 +290,6 @@ def program_button_command(switch_name, button_number, scenes, time_based, slot,
     # Extract from SwitchBehaviour TypedDict
     behaviour = result['behaviour']
     device_name = result['device_name']
-    device = result['device']
     instance_id = behaviour['id']
 
     # 5. Resolve zone/room if --where is specified (for any button type)

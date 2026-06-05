@@ -159,11 +159,11 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
             click.echo(f"Waiting for button press... (attempt {attempt}/{max_attempts})")
 
             # Make POST request
-            # verify=False required: Hue Bridge uses a self-signed TLS certificate (nosec B501)
+            # verify=False required: Hue Bridge uses a self-signed TLS certificate
             response = requests.post(
                 url,
                 json=payload,
-                verify=False,  # nosec B501
+                verify=False,  # nosec B501 lgtm[py/request-without-cert-validation]
                 timeout=35  # Allow time for button press
             )
 
