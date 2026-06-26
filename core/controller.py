@@ -247,35 +247,58 @@ class HueController:
         url = f"{self.base_url}{endpoint}"
         headers = {"hue-application-key": self.api_token}
 
-        try:
-            if method == 'GET':
-                response = self.session.get(url, headers=headers, timeout=5)
-            elif method == 'PUT':
-                response = self.session.put(url, headers=headers, json=data, timeout=5)
-            elif method == 'POST':
-                response = self.session.post(url, headers=headers, json=data, timeout=5)
-            elif method == 'DELETE':
-                response = self.session.delete(url, headers=headers, timeout=5)
-            else:
-                return None
-
-            response.raise_for_status()
-            result = response.json()
-
-            # v2 API returns {errors: [], data: [...]}
-            if isinstance(result, dict) and 'data' in result:
-                return result['data']
-            return result
-        except Exception as e:
-            click.echo(f"API request error: {e}")
-            # Show response body for debugging
+        # The first TLS handshake to the bridge at process startup occasionally
+        # fails transiently (e.g. a momentary system proxy/VPN condition produces
+        # a spurious CERTIFICATE_VERIFY_FAILED, even though verification is disabled
+        # at the SSL-context level). It always succeeds on a quick retry, so retry
+        # connection-level failures rather than aborting the whole command.
+        max_attempts = 3
+        last_error: Exception | None = None
+        for attempt in range(1, max_attempts + 1):
             try:
-                if hasattr(e, 'response') and e.response is not None:
-                    error_body = e.response.text
-                    click.echo(f"Response body: {error_body}", err=True)
-            except (AttributeError, Exception):
-                pass
-            return None
+                if method == 'GET':
+                    response = self.session.get(url, headers=headers, timeout=5)
+                elif method == 'PUT':
+                    response = self.session.put(url, headers=headers, json=data, timeout=5)
+                elif method == 'POST':
+                    response = self.session.post(url, headers=headers, json=data, timeout=5)
+                elif method == 'DELETE':
+                    response = self.session.delete(url, headers=headers, timeout=5)
+                else:
+                    return None
+
+                response.raise_for_status()
+                result = response.json()
+
+                # v2 API returns {errors: [], data: [...]}
+                if isinstance(result, dict) and 'data' in result:
+                    return result['data']
+                return result
+            except (requests.exceptions.SSLError,
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout) as e:
+                # Transient connection-level failure - retry with a short backoff.
+                last_error = e
+                if attempt < max_attempts:
+                    click.echo(
+                        f"Connection attempt {attempt} failed, retrying...", err=True)
+                    time.sleep(0.5 * attempt)
+                    continue
+                break
+            except Exception as e:
+                # Non-transient error (e.g. HTTP 4xx) - do not retry.
+                last_error = e
+                break
+
+        click.echo(f"API request error: {last_error}")
+        # Show response body for debugging
+        try:
+            if hasattr(last_error, 'response') and last_error.response is not None:
+                error_body = last_error.response.text
+                click.echo(f"Response body: {error_body}", err=True)
+        except (AttributeError, Exception):
+            pass
+        return None
 
     def connect(self, interactive: bool = True) -> bool:
         """Connect to the Hue Bridge using authentication priority system.
