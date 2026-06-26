@@ -172,7 +172,9 @@ def get_cache_info(controller: 'HueController') -> dict:
             age_hours = age.total_seconds() / 3600
             is_stale = age > timedelta(hours=24)
         except (ValueError, TypeError):
-            pass
+            # Malformed timestamp - treat the cache as stale so it gets refreshed.
+            age_hours = None
+            is_stale = True
 
     return {
         'exists': True,

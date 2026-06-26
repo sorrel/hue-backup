@@ -6,14 +6,10 @@ Back up and restore Philips Hue switch configurations and room settings.
 
 import click
 import os
-import requests
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 # Import utility functions from models
-from models.utils import get_cache_controller
 
 # Import HueController from core
-from core.controller import HueController
 
 # Import commands from command modules
 from commands.setup import ColouredGroup, help_command, setup_command, configure_command
@@ -57,9 +53,6 @@ from commands.scene_management import (
     duplicate_scene_command,
     modify_scenes_command
 )
-
-# Disable SSL warnings for self-signed certificate
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 
 @click.group(
@@ -224,17 +217,15 @@ complete -F _hue_completion hue
         click.echo(f"Unsupported shell: {shell}")
         return
 
-    # Check if already installed
-    try:
+    # Check if already installed (config file may not exist yet - that's fine)
+    if os.path.exists(config_file):
         with open(config_file, 'r') as f:
             content = f.read()
-            if 'hue_backup_completion' in content or completion_dir in content:
-                click.secho(f"✓ Completion already installed in {config_file}", fg='green')
-                click.echo(f"\nCompletion file: {completion_file}")
-                click.echo(f"\nReload your shell with: source {config_file}")
-                return
-    except FileNotFoundError:
-        pass
+        if 'hue_backup_completion' in content or completion_dir in content:
+            click.secho(f"✓ Completion already installed in {config_file}", fg='green')
+            click.echo(f"\nCompletion file: {completion_file}")
+            click.echo(f"\nReload your shell with: source {config_file}")
+            return
 
     # Add alias and completion to config file
     try:

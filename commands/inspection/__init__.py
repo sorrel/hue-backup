@@ -93,4 +93,7 @@ __all__ = [
     'lights_command',
     'other_command',
     'all_devices_command',
+
+    # Re-exported utils (test compatibility)
+    'get_cache_controller',
 ]

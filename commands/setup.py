@@ -458,8 +458,9 @@ def setup_command():
                 bridge = bridge_data[0]
                 click.echo(f"  Bridge ID:  {bridge.get('id', 'Unknown')}")
                 click.echo(f"  Model ID:   {bridge.get('bridge_id', 'Unknown')}")
-        except Exception:
-            pass
+        except Exception as e:
+            # Bridge details are best-effort - the connection itself already succeeded.
+            click.echo(f"  (Could not fetch bridge details: {e})", err=True)
     else:
         click.secho("✗ Connection failed", fg='red', bold=True)
         click.echo()

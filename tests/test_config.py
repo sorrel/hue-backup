@@ -51,7 +51,6 @@ class TestLoadConfig:
         mock_file.__enter__.return_value.read.return_value = '{"button_mappings": {"1002": "scene-id"}}'
         mock_open.return_value = mock_file
 
-        import json
         with patch('json.load') as mock_json_load:
             mock_json_load.return_value = {"button_mappings": {"1002": "scene-id"}}
             result = load_config()
