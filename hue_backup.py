@@ -7,9 +7,11 @@ Back up and restore Philips Hue switch configurations and room settings.
 import click
 import os
 
-# Import utility functions from models
+# Re-exported so helpers can do `from hue_backup import HueController` without
+# creating a core.controller <-> models.utils import cycle (see models/utils.py).
+from core.controller import HueController
 
-# Import HueController from core
+__all__ = ['HueController']
 
 # Import commands from command modules
 from commands.setup import ColouredGroup, help_command, setup_command, configure_command

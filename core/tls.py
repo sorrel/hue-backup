@@ -32,6 +32,8 @@ def _verified_context() -> ssl.SSLContext:
     connect to. Certificate-chain verification itself stays mandatory.
     """
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    # Refuse the obsolete TLS 1.0/1.1 protocols (bridges negotiate TLS 1.2).
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     ctx.load_verify_locations(str(CA_BUNDLE_PATH))
     ctx.verify_mode = ssl.CERT_REQUIRED
     ctx.check_hostname = False
