@@ -4,18 +4,13 @@ This module contains the main controller class that handles all communication
 with the Philips Hue Bridge using API v2.
 """
 
-import ssl
 import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
 import click
-import json
 import time
-from datetime import datetime, timedelta
-from pathlib import Path
 
 from core.config import load_config, save_config
-from core.cache import reload_cache, is_cache_stale, ensure_fresh_cache, get_cache_info
+from core.cache import reload_cache, is_cache_stale, ensure_fresh_cache
+from core.tls import make_verified_session, learn_bridge_id
 from models.utils import create_name_lookup, extract_room_rids_from_behaviour
 
 # Button labels for wall controls
@@ -27,38 +22,6 @@ BUTTON_LABELS_EXTENDED = {
     34: 'DIAL ROTATE',
     35: 'DIAL PRESS',
 }
-
-# Disable SSL warnings for self-signed certificate
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-
-
-def _make_unverified_ssl_context() -> ssl.SSLContext:
-    """Create an SSL context that skips certificate verification entirely.
-
-    Using SSLContext directly with explicit check_hostname=False and CERT_NONE
-    is more reliable than _create_unverified_context() on newer macOS/Python builds,
-    where the private helper may still load system CAs and enforce verification.
-    """
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # nosec B323
-    ctx.check_hostname = False  # Must be set before verify_mode
-    ctx.verify_mode = ssl.CERT_NONE  # nosec B501
-    return ctx
-
-
-class _PermissiveSSLAdapter(HTTPAdapter):
-    """HTTPAdapter that disables SSL verification at the context level.
-
-    Required for urllib3 v2+ where session.verify=False alone no longer
-    reliably bypasses SSL errors with self-signed certificates (e.g. Hue Bridge).
-    """
-
-    def init_poolmanager(self, *args, **kwargs):
-        kwargs['ssl_context'] = _make_unverified_ssl_context()
-        return super().init_poolmanager(*args, **kwargs)
-
-    def proxy_manager_for(self, proxy, **proxy_kwargs):
-        proxy_kwargs['ssl_context'] = _make_unverified_ssl_context()
-        return super().proxy_manager_for(proxy, **proxy_kwargs)
 
 
 class HueController:
@@ -79,13 +42,11 @@ class HueController:
         self.config = load_config()
         self.button_mappings = self.config.get('button_mappings', {})
         self.last_button_states = {}
+        self.bridge_id = self.config.get('bridge_id')
+        # The verifying session is configured in connect() once the bridge ID is
+        # known. A plain session here would verify against the public web PKI and
+        # fail closed if used before connect() - which is the intended gate.
         self.session = requests.Session()
-        # Hue Bridge uses a self-signed TLS certificate; verification must be disabled.
-        # This is intentional and documented by Philips. Warning suppression is at module level.
-        # urllib3 v2+ requires an explicit SSL context rather than relying solely on verify=False.
-        self.session.verify = False  # nosec B501
-        adapter = _PermissiveSSLAdapter()
-        self.session.mount('https://', adapter)
         self.use_cache = use_cache
 
         # Cache for v2 resources (memory)
@@ -291,14 +252,36 @@ class HueController:
                 break
 
         click.echo(f"API request error: {last_error}")
-        # Show response body for debugging
-        try:
-            if hasattr(last_error, 'response') and last_error.response is not None:
-                error_body = last_error.response.text
-                click.echo(f"Response body: {error_body}", err=True)
-        except (AttributeError, Exception):
-            pass
+        # Show response body for debugging (best-effort - not all errors carry one)
+        response = getattr(last_error, 'response', None)
+        if response is not None:
+            click.echo(f"Response body: {response.text}", err=True)
         return None
+
+    def _configure_verified_session(self) -> bool:
+        """Resolve and pin the bridge ID, then build a fully-verified session.
+
+        The bridge ID is read from the cached config when available; otherwise it
+        is learned from the bridge's certificate (which must chain to a pinned Hue
+        root CA, so the value cannot be spoofed) and persisted for next time.
+
+        Returns False if the device cannot be verified as a genuine Hue bridge.
+        """
+        if not self.bridge_id:
+            learned = learn_bridge_id(self.bridge_ip)
+            if not learned:
+                click.echo(
+                    f"Error: could not verify the TLS certificate of the device at "
+                    f"{self.bridge_ip} against the Philips Hue root CA.")
+                click.echo(
+                    "It may not be a genuine Hue bridge, or the network is blocking it.")
+                return False
+            self.bridge_id = learned
+            self.config['bridge_id'] = learned
+            save_config(self.config)
+
+        self.session = make_verified_session(self.bridge_id)
+        return True
 
     def connect(self, interactive: bool = True) -> bool:
         """Connect to the Hue Bridge using authentication priority system.
@@ -335,6 +318,10 @@ class HueController:
 
             # Update base_url with bridge IP
             self.base_url = f"https://{self.bridge_ip}/clip/v2"
+
+            # Pin the bridge ID and switch to a fully-verified TLS session
+            if not self._configure_verified_session():
+                return False
 
             # Test connection by getting bridge resource
             result = self._request('GET', '/resource/bridge')

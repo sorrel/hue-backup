@@ -356,7 +356,7 @@ uv run python hue_backup.py reload  # Force cache refresh
 
 - Hue API keys don't expire (one-time setup)
 - Cache auto-refreshes after 24 hours (when next run)
-- SSL warnings suppressed (bridges use self-signed certs)
+- TLS connections to the bridge are fully verified: the certificate is pinned to the Philips/Signify Hue Bridge root CA and the bridge ID is asserted as the certificate identity (no verification is disabled)
 - Local API only (no cloud/remote API), apart from the initial bridge finder API
 - All write operations require explicit confirmation (use `-y` flag to skip)
 - Bridge-native configurations are preserved during restore operations

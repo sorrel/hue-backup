@@ -6,7 +6,7 @@ Includes power, brightness, colour, scene activation, and auto-dynamic control.
 
 import click
 from core.controller import HueController
-from models.utils import get_controller, get_cache_controller, create_name_lookup
+from models.utils import get_controller, get_cache_controller
 
 
 @click.command()

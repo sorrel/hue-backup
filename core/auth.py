@@ -7,19 +7,15 @@ from 1Password Environments via .env file (mounted by 1Password desktop app).
 
 import ipaddress
 import os
-import json
 import re
 import threading
 from pathlib import Path
 
 import click
 import requests
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
+from core.tls import make_verified_session, learn_bridge_id
 from models.types import AuthCredentials, DiscoveredBridge
-
-# Disable SSL warnings for self-signed certificate
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 
 def discover_bridges() -> list[DiscoveredBridge]:
@@ -115,6 +111,7 @@ def _validate_bridge_ip(bridge_ip: str) -> bool:
         ipaddress.ip_address(bridge_ip)
         return True
     except ValueError:
+        # Not an IP literal - fall through and validate as a hostname instead.
         pass
 
     # Allow simple hostnames (letters, digits, hyphens, dots — no slashes or query strings)
@@ -139,8 +136,21 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
         click.echo(f"Error: Invalid bridge IP address: '{bridge_ip}'", err=True)
         return None
 
+    # Learn and verify the bridge's identity from its certificate before sending
+    # the credential request. This both confirms we're talking to a genuine Hue
+    # bridge and gives us the bridge ID needed to fully verify the connection.
+    bridge_id = learn_bridge_id(bridge_ip)
+    if not bridge_id:
+        click.echo(
+            f"Error: could not verify the TLS certificate of the device at "
+            f"{bridge_ip} against the Philips Hue root CA.", err=True)
+        click.echo(
+            "It may not be a genuine Hue bridge, or the network is blocking it.", err=True)
+        return None
+
     url = f"https://{bridge_ip}/api"
     payload = {"devicetype": app_name}
+    session = make_verified_session(bridge_id)
 
     max_attempts = 3
 
@@ -158,12 +168,11 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
 
             click.echo(f"Waiting for button press... (attempt {attempt}/{max_attempts})")
 
-            # Make POST request
-            # verify=False required: Hue Bridge uses a self-signed TLS certificate
-            response = requests.post(
+            # Make POST request over the verified session (chain pinned to the
+            # Hue root CA, certificate identity asserted against the bridge ID).
+            response = session.post(
                 url,
                 json=payload,
-                verify=False,  # nosec B501 lgtm[py/request-without-cert-validation]
                 timeout=35  # Allow time for button press
             )
 

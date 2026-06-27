@@ -188,7 +188,8 @@ def get_controller():
     Returns:
         A connected HueController, or None if connection failed
     """
-    # Import here to avoid circular dependency
+    # Imported via hue_backup (not core.controller) to avoid a controller<->utils
+    # import cycle, since core.controller imports helpers from this module.
     import sys
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -211,8 +212,8 @@ def get_cache_controller(auto_reload: bool = True):
     Returns:
         A cache-enabled HueController, or None if cache couldn't be prepared
     """
-    # Import here to avoid circular dependency
-    # HueController will be in core.controller after Phase 6
+    # Imported via hue_backup (not core.controller) to avoid a controller<->utils
+    # import cycle, since core.controller imports helpers from this module.
     import sys
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
