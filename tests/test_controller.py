@@ -6,6 +6,7 @@ the corresponding functions in core modules, and that required
 utilities are properly imported.
 """
 
+import pytest
 from unittest.mock import patch
 from core.controller import HueController, BUTTON_LABELS_EXTENDED
 
@@ -291,3 +292,42 @@ class TestBatteryData:
         assert '18' in sensors
         # Config should be empty dict when no battery
         assert sensors['18']['config'] == {}
+
+
+class TestSSRFGuard:
+    """Test that the bridge IP is validated before it can reach a request URL.
+
+    These tests lock in the SSRF fix: only a valid IP address or plain
+    hostname may be used to build the bridge base URL, never an attacker
+    crafted URL, port, path, or shell metacharacter.
+    """
+
+    def test_constructor_rejects_url_style_ip(self):
+        """A bridge_ip containing a path/URL is rejected at construction."""
+        with pytest.raises(ValueError):
+            HueController(bridge_ip='evil.com/steal')
+
+    def test_constructor_rejects_metadata_endpoint_with_path(self):
+        """A crafted metadata-service address with a path is rejected."""
+        with pytest.raises(ValueError):
+            HueController(bridge_ip='169.254.169.254/latest/meta-data')
+
+    def test_constructor_rejects_shell_metacharacters(self):
+        """A value carrying shell metacharacters is rejected."""
+        with pytest.raises(ValueError):
+            HueController(bridge_ip='192.168.1.2 && rm -rf /')
+
+    def test_constructor_accepts_valid_ip(self):
+        """A plain IPv4 address is accepted and builds the expected base URL."""
+        controller = HueController(bridge_ip='192.168.1.100')
+        assert controller.base_url == 'https://192.168.1.100/clip/v2'
+
+    def test_constructor_accepts_hostname(self):
+        """A simple hostname is accepted."""
+        controller = HueController(bridge_ip='huebridge.local')
+        assert controller.base_url == 'https://huebridge.local/clip/v2'
+
+    def test_no_bridge_ip_is_allowed(self):
+        """No bridge_ip (loaded later during connect) leaves base_url unset."""
+        controller = HueController()
+        assert controller.base_url is None
