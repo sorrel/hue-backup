@@ -11,6 +11,7 @@ import time
 from core.config import load_config, save_config
 from core.cache import reload_cache, is_cache_stale, ensure_fresh_cache
 from core.tls import make_verified_session, learn_bridge_id
+from core.auth import validate_bridge_ip
 from models.utils import create_name_lookup, extract_room_rids_from_behaviour
 
 # Button labels for wall controls
@@ -36,6 +37,11 @@ class HueController:
             bridge_ip: Bridge IP address (optional, loaded during connect() if not provided)
             api_token: API authentication token (optional, loaded during connect() if not provided)
         """
+        # Validate any supplied IP before it is ever used to build a request URL.
+        # This prevents SSRF: only a valid IP address or plain hostname can reach
+        # the HTTP layer, never an attacker-crafted URL, port, or path.
+        if bridge_ip and not validate_bridge_ip(bridge_ip):
+            raise ValueError(f"Invalid bridge IP address: {bridge_ip!r}")
         self.bridge_ip = bridge_ip
         self.api_token = api_token
         self.base_url = f"https://{bridge_ip}/clip/v2" if bridge_ip else None
@@ -315,6 +321,12 @@ class HueController:
 
                 self.bridge_ip = credentials['bridge_ip']
                 self.api_token = credentials['api_token']
+
+            # Validate the bridge IP before building the request URL (SSRF guard).
+            if not validate_bridge_ip(self.bridge_ip):
+                click.echo(
+                    f"Error: Invalid bridge IP address: '{self.bridge_ip}'", err=True)
+                return False
 
             # Update base_url with bridge IP
             self.base_url = f"https://{self.bridge_ip}/clip/v2"
