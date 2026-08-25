@@ -253,7 +253,7 @@ commands/                # CLI commands
       ├── status.py      # Status/overview (3 commands)
       ├── devices.py     # Device listing (4 commands)
       └── switches.py    # Switch inspection (5 commands)
-tests/                   # 144 tests, all mocked
+tests/                   # 156 tests, all mocked
   ├── test_button_config.py  # Button configuration tests
   ├── test_inspection.py     # Inspection command tests
   └── test_utils.py      # Utility function tests
@@ -267,7 +267,7 @@ cache/                   # Local cache (gitignored)
 # Install dependencies with dev extras (includes pytest)
 uv sync --extra dev
 
-# Run all tests (140 total, all passing)
+# Run all tests (156 total, all passing)
 uv run pytest -v
 
 # Run specific test file
@@ -276,7 +276,8 @@ uv run pytest tests/test_inspection.py -v
 ```
 
 **Test Coverage:**
-- 140 tests
+- 156 tests
+- Run in CI on every push to main and every pull request
 - All tests use mocks (no actual API calls or file writes)
 - Test files:
   - `test_structure.py` - Directory and file structure
@@ -286,6 +287,7 @@ uv run pytest tests/test_inspection.py -v
   - `test_controller.py` - Controller delegation
   - `test_inspection.py` - Inspection commands
   - `test_button_config.py` - Button programming logic
+  - `test_tls.py` - Bridge CA pinning and certificate identity
 
 ## Technical Details
 
