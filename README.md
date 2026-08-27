@@ -208,10 +208,15 @@ Credentials are managed via **1Password Environments** for maximum security.
 
 ### How It Works
 
-- The `.env` file is mounted by 1Password (not a real file on disk)
-- `python-dotenv` loads variables at startup
+- The `.env` file is mounted by 1Password (not a real file on disk — it is a
+  FIFO, and the values are streamed through it on demand)
+- Variables are loaded at startup, parsed by `python-dotenv` but read under a
+  short deadline: a FIFO yields nothing until 1Password is unlocked, so a
+  blocking read would hang the CLI indefinitely. Instead it warns and carries
+  on without credentials.
 - Your credentials are automatically available
-- `.env` file is gitignored to prevent accidental commits
+- `.env` file is gitignored to prevent accidental commits (see `.env.example`
+  for the variables it must define)
 
 ## Using with AI Assistants
 

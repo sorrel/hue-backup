@@ -6,9 +6,11 @@ from 1Password Environments via .env file (mounted by 1Password desktop app).
 """
 
 import ipaddress
+import io
 import os
 import re
-import threading
+import stat
+import time
 from pathlib import Path
 
 import click
@@ -224,24 +226,94 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
 
 
 
-def _load_dotenv_safe(timeout: float = 3.0) -> None:
-    """Load .env with a timeout to avoid blocking on 1Password named pipes."""
-    from dotenv import load_dotenv
-    import click
-    done = threading.Event()
+#: How long to wait for 1Password to hand over the mounted `.env`.
+ENV_READ_TIMEOUT = 3.0
 
-    def _load():
-        load_dotenv()
-        done.set()
 
-    threading.Thread(target=_load, daemon=True).start()
-    if not done.wait(timeout=timeout):
+def _read_env_text(path: str, timeout: float = ENV_READ_TIMEOUT) -> str | None:
+    """Return the text of the `.env` at `path`, or None if it could not be read.
+
+    A 1Password local-env file is a FIFO: it yields its contents only once
+    1Password attaches as a writer, which needs the app unlocked and the read
+    authorised. A blocking open therefore waits forever when it is locked.
+
+    An earlier version ran `load_dotenv()` on a daemon thread and gave up on
+    the *wait* after a timeout. That kept the main path moving, but the worker
+    stayed blocked on `open()` for the life of the process — one leaked thread
+    and one held FIFO reader per call — and if 1Password attached later, that
+    stale thread would write to `os.environ` at some arbitrary moment well
+    after the caller had already decided the credentials were unavailable.
+
+    Bounding the read itself removes all of that: O_NONBLOCK returns from
+    `open()` even with no writer attached (the open is what prompts 1Password
+    to attach), then we poll until the writer has written and closed. An empty
+    read means "no writer *yet*", not end-of-data, so it counts as EOF only
+    once bytes have actually arrived.
+    """
+    if not path:
+        return None
+    try:
+        mode = os.stat(path).st_mode
+    except OSError:
+        return None
+
+    if not stat.S_ISFIFO(mode):
+        try:
+            return Path(path).read_text(encoding='utf-8')
+        except OSError:
+            return None
+
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return None
+
+    chunks: list[bytes] = []
+    deadline = time.monotonic() + timeout
+    try:
+        while time.monotonic() < deadline:
+            try:
+                chunk = os.read(fd, 65536)
+            except BlockingIOError:
+                chunk = None          # writer attached, nothing ready yet
+            except OSError:
+                return None
+            if chunk:
+                chunks.append(chunk)
+                continue
+            if chunk == b"" and chunks:
+                break                 # writer closed after writing: real EOF
+            time.sleep(0.05)          # no writer yet — give 1Password a moment
+        else:
+            return None               # deadline passed
+    finally:
+        os.close(fd)
+
+    return b"".join(chunks).decode('utf-8', 'replace')
+
+
+def _load_dotenv_safe(timeout: float = ENV_READ_TIMEOUT) -> bool:
+    """Load .env without ever blocking on a 1Password named pipe.
+
+    Keeps `load_dotenv()`'s default of not overriding variables already set.
+    Returns True if the file was read.
+    """
+    from dotenv import dotenv_values, find_dotenv
+
+    text = _read_env_text(find_dotenv(usecwd=True), timeout=timeout)
+    if text is None:
         click.secho(
             "⚠ Warning: .env file timed out — 1Password environment may not be mounted. "
             "Bridge credentials unavailable.",
             fg='yellow',
             err=True,
         )
+        return False
+
+    for key, value in dotenv_values(stream=io.StringIO(text)).items():
+        if value is not None and key not in os.environ:
+            os.environ[key] = value
+    return True
 
 
 def load_auth_from_environment() -> AuthCredentials | None:
