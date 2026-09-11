@@ -16,7 +16,7 @@ from pathlib import Path
 import click
 import requests
 
-from core.tls import make_verified_session, learn_bridge_id
+from core.tls import make_verified_session, learn_bridge_id, BridgeVerificationError, verification_error_lines
 from models.types import AuthCredentials, DiscoveredBridge
 
 
@@ -141,7 +141,12 @@ def create_user_via_link_button(bridge_ip: str, app_name: str = "hue_backup#cli"
     # Learn and verify the bridge's identity from its certificate before sending
     # the credential request. This both confirms we're talking to a genuine Hue
     # bridge and gives us the bridge ID needed to fully verify the connection.
-    bridge_id = learn_bridge_id(bridge_ip)
+    try:
+        bridge_id = learn_bridge_id(bridge_ip)
+    except BridgeVerificationError as e:
+        for line in verification_error_lines(bridge_ip, e):
+            click.echo(line, err=True)
+        return None
     if not bridge_id:
         click.echo(
             f"Error: could not verify the TLS certificate of the device at "

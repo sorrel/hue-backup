@@ -11,8 +11,10 @@ import requests
 
 from core.tls import (
     CA_BUNDLE_PATH,
+    BridgeVerificationError,
     HueBridgeAdapter,
     make_verified_session,
+    verification_error_lines,
     _common_name,
     _verified_context,
 )
@@ -80,3 +82,30 @@ class TestCommonName:
 
     def test_returns_none_for_empty_cert(self):
         assert _common_name({}) is None
+
+
+class TestBridgeVerificationError:
+    """The error carries a category distinguishing cert vs. connection failures."""
+
+    def test_stores_message_and_category(self):
+        error = BridgeVerificationError('boom', category='connection')
+        assert str(error) == 'boom'
+        assert error.category == 'connection'
+
+
+class TestVerificationErrorLines:
+    """Callers get an accurate message instead of always blaming the certificate."""
+
+    def test_cert_category_blames_the_certificate(self):
+        error = BridgeVerificationError('CERTIFICATE_VERIFY_FAILED', category='cert')
+        lines = verification_error_lines('10.0.0.1', error)
+        assert any('certificate' in line.lower() for line in lines)
+        assert not any('firewall' in line.lower() for line in lines)
+
+    def test_connection_category_points_at_a_local_firewall(self):
+        error = BridgeVerificationError('[Errno 65] No route to host', category='connection')
+        lines = verification_error_lines('10.0.0.1', error)
+        joined = ' '.join(lines)
+        assert 'No route to host' in joined
+        assert 'firewall' in joined.lower()
+        assert "isn't a certificate problem" in joined
