@@ -85,6 +85,20 @@ def _common_name(cert: dict) -> str | None:
     return None
 
 
+class BridgeVerificationError(Exception):
+    """Raised by ``learn_bridge_id`` when the bridge's identity cannot be verified.
+
+    ``category`` distinguishes a genuine certificate/chain problem (``'cert'``)
+    from a lower-level connection failure (``'connection'`` - unreachable,
+    refused, timed out) so callers can print an accurate hint instead of
+    always blaming the certificate.
+    """
+
+    def __init__(self, message: str, category: str):
+        super().__init__(message)
+        self.category = category
+
+
 def learn_bridge_id(bridge_ip: str, timeout: int = 8) -> str | None:
     """Learn a bridge's ID from its certificate, verifying the CA chain.
 
@@ -94,6 +108,15 @@ def learn_bridge_id(bridge_ip: str, timeout: int = 8) -> str | None:
 
     Returns the bridge ID, or None if the device could not be verified as a
     genuine Hue bridge.
+
+    Raises:
+        BridgeVerificationError: if the connection or handshake fails. Carries
+            the original error text and a ``category`` ('cert' or
+            'connection') so callers can report the real cause - a
+            'connection' failure (e.g. "No route to host") is often a local
+            firewall (Little Snitch, TripMode, etc.) silently blocking the
+            Python interpreter from reaching the local network, not a
+            certificate problem.
     """
     ctx = _verified_context()
     try:
@@ -102,7 +125,33 @@ def learn_bridge_id(bridge_ip: str, timeout: int = 8) -> str | None:
             # chain verification (CERT_REQUIRED) is what protects this handshake.
             with ctx.wrap_socket(sock, server_hostname=bridge_ip) as ssock:
                 cert = ssock.getpeercert()
-    except (ssl.SSLError, OSError):
-        return None
+    except ssl.SSLError as e:
+        raise BridgeVerificationError(str(e), category='cert') from e
+    except OSError as e:
+        raise BridgeVerificationError(str(e), category='connection') from e
 
     return _common_name(cert)
+
+
+def verification_error_lines(bridge_ip: str, error: BridgeVerificationError) -> list[str]:
+    """Build the click.echo lines to show when ``learn_bridge_id`` fails.
+
+    Distinguishes a genuine certificate problem from a connection-level one
+    (e.g. "No route to host"), since the latter is usually a local firewall
+    (Little Snitch, TripMode, etc.) silently blocking this Python interpreter
+    from reaching the local network rather than a real certificate issue.
+    """
+    if error.category == 'cert':
+        return [
+            f"Error: could not verify the TLS certificate of the device at "
+            f"{bridge_ip} against the Philips Hue root CA.",
+            "It may not be a genuine Hue bridge, or the network is blocking it.",
+        ]
+    return [
+        f"Error: could not connect to {bridge_ip} to verify it ({error}).",
+        "This isn't a certificate problem - the connection itself failed. If curl or "
+        "ping can reach the bridge but this can't, a per-app firewall (Little Snitch, "
+        "TripMode, etc.) may be silently blocking this Python interpreter from "
+        "reaching your local network. Check its rules/log for a blocked connection "
+        "from python3, and allow it.",
+    ]

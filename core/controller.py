@@ -10,7 +10,7 @@ import time
 
 from core.config import load_config, save_config
 from core.cache import reload_cache, is_cache_stale, ensure_fresh_cache
-from core.tls import make_verified_session, learn_bridge_id
+from core.tls import make_verified_session, learn_bridge_id, BridgeVerificationError, verification_error_lines
 from core.auth import validate_bridge_ip
 from models.utils import create_name_lookup, extract_room_rids_from_behaviour
 
@@ -274,7 +274,12 @@ class HueController:
         Returns False if the device cannot be verified as a genuine Hue bridge.
         """
         if not self.bridge_id:
-            learned = learn_bridge_id(self.bridge_ip)
+            try:
+                learned = learn_bridge_id(self.bridge_ip)
+            except BridgeVerificationError as e:
+                for line in verification_error_lines(self.bridge_ip, e):
+                    click.echo(line)
+                return False
             if not learned:
                 click.echo(
                     f"Error: could not verify the TLS certificate of the device at "
